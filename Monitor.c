@@ -8,15 +8,16 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-void read_from_pipe(unsigned int, unsigned int, int, char*);
+void read_from_pipe(unsigned int, unsigned int, int, void*);
+
 
 int main(int argc, char *argv[]) {
 
     int fd[2];
     unsigned int buffer_size = 100, message_size;
     char message[100];
-
     enum{READ,WRITE};
+
 
     /*Check Arguments*/
 
@@ -30,21 +31,18 @@ int main(int argc, char *argv[]) {
 
     /*Get Countries Directory from pipe*/
 
-    read_from_pipe(4,buffer_size,fd[READ],message);
-    // printf("Message Received: %d\n", *(int*)message);
-    // fflush(stdout);
-    message_size = *(int*)message;
+    read_from_pipe(sizeof(message_size),buffer_size,fd[READ],&message_size);
+    // printf("Message Received: %d\n", message_size);
     read_from_pipe(message_size,buffer_size,fd[READ],message);
-    // message[message_size] = '\0';
     // printf("Message Received: %s\n", message);
-
-    fflush(stdout);
 }
 
-void read_from_pipe(unsigned int message_size, unsigned int buffer_size, int fd, char* message) {
+void read_from_pipe(unsigned int message_size, unsigned int buffer_size, int fd, void* message) {
+
 
 	unsigned int bytes_to_read, btr_bac, bytes_read, bytes_read_total;
-	char msgbuf[buffer_size];
+	void* msgbuf = malloc(buffer_size);
+
 
 	for (int i=0 ; message_size>0 ; i++) {
 
@@ -63,5 +61,6 @@ void read_from_pipe(unsigned int message_size, unsigned int buffer_size, int fd,
 		message_size -= btr_bac;
 		memcpy(message+i*buffer_size,msgbuf,btr_bac);
 	}
+	free (msgbuf);
 	return;
 }

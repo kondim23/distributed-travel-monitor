@@ -63,12 +63,10 @@ int main(int argc, char *argv[]) {
         switch(pid) {
 
             case -1:
-
                 perror("fork failed\n");
                 exit(1);
 
             case 0:
-
                 execlp("./Monitor",fifoName[READ],fifoName[WRITE],NULL);
 	    }
     }
@@ -90,7 +88,7 @@ int main(int argc, char *argv[]) {
             strcpy(subdirectory,inputDir);
             strcat(subdirectory,"/");
             strcat(subdirectory,direntp->d_name);
-/**/
+
             message_size = strlen(subdirectory);
 
             if ((nwrite=write(fd[i][WRITE], &message_size, sizeof(int))) == -1) {
@@ -102,12 +100,11 @@ int main(int argc, char *argv[]) {
                 perror("Error in Writing"); exit(2);
             }
             // printf("%d\n",nwrite);
-/**/
+
             free(subdirectory);
             i = (++i) % numMonitors;
         }
         closedir(dir_ptr);
     }
-
     free(inputDir);
 }

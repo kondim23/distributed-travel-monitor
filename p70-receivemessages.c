@@ -7,14 +7,14 @@
 #include <string.h>
 #include <errno.h>
 
-#define MSGSIZE 10
+#define MSGSIZE 100
 
 char *fifo = "myfifo";
-void read_from_pipe(unsigned int, unsigned int, int, char message[MSGSIZE+1]);
+void read_from_pipe(unsigned int, unsigned int, int, void* message);
 
 void 	main(int argc, char *argv[]){
-	int fd, i, nwrite, bytes_read;
-	unsigned short int buffer_size=4, bytes_to_read, message_size, btr_bac, ms_bac;
+	int fd, i, nwrite, bytes_read, message_size;
+	unsigned short int buffer_size=4, bytes_to_read, btr_bac, ms_bac;
 	char msgbuf[buffer_size], message[MSGSIZE+1]="\0";
 
 	if (argc>2) { printf("Usage: receivemessage & \n"); exit(1); }
@@ -27,26 +27,26 @@ void 	main(int argc, char *argv[]){
 		}
 	for (;;){
 
-		read_from_pipe(4,buffer_size,fd,message);
+		read_from_pipe(4,buffer_size,fd,&message_size);
 
-		printf("Message Received: %d\n", *(int*)message);
+		printf("Message Received: %d\n", message_size);
 		fflush(stdout);
 
-		message_size = *(int*)message;
-		ms_bac = message_size;
+		// message_size = *(int*)message;
+		// ms_bac = message_size;
 
 		read_from_pipe(message_size,buffer_size,fd,message);
 
-		message[ms_bac] = '\0';
+		message[message_size] = '\0';
 		printf("Message Received: %s\n", message);
 		fflush(stdout);
 	}
 }
 
-void read_from_pipe(unsigned int message_size, unsigned int buffer_size, int fd, char message[MSGSIZE+1]) {
+void read_from_pipe(unsigned int message_size, unsigned int buffer_size, int fd, void* message) {
 
 	unsigned int bytes_to_read, btr_bac, bytes_read, bytes_read_total;
-	char msgbuf[buffer_size];
+	void* msgbuf = malloc(buffer_size);
 
 	for (int i=0 ; message_size>0 ; i++) {
 
@@ -65,5 +65,6 @@ void read_from_pipe(unsigned int message_size, unsigned int buffer_size, int fd,
 		message_size -= btr_bac;
 		memcpy(message+i*buffer_size,msgbuf,btr_bac);
 	}
+	free (msgbuf);
 	return;
 }
