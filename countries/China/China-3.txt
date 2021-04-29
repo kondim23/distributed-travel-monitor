@@ -1,0 +1,6 @@
+13 name surname 32 covid-19 YES 12-12-2020
+14 name surname 32 covid-19 YES 12-12-2020
+15 name surname 32 covid-19 YES 12-12-2020
+16 name surname 32 covid-19 YES 12-12-2020
+17 name surname 32 covid-19 YES 12-12-2020
+18 name surname 32 covid-19 YES 12-12-2020
