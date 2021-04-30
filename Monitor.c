@@ -28,14 +28,14 @@ struct tm tempTime={0};
 time_t date1, date2;
 char *lineInput, bufferLine[200], *token, date[11];
 size_t fileBufferSize=512;
-unsigned int bloomSize=100;
+unsigned int bloomSize=20;
 int fd[2];
 enum{READ,WRITE};
 
 int main(int argc, char *argv[]) {
 
 	FILE *citizenRecordsFile;
-    unsigned int buffer_size = 100, message_size;
+    unsigned int buffer_size = 10, message_size;
     void *message;
 	DIR 	*dir_ptr;
     struct 	dirent *direntp;
@@ -56,6 +56,15 @@ int main(int argc, char *argv[]) {
     virusHash = hash_Initialize();
     recordsHash = hash_Initialize();
     countriesHash = hash_Initialize();
+
+	/*Get buffer size and bloom size from pipe*/
+
+	// printf("old %d\n",buffer_size);
+	// printf("old %d\n",bloomSize);
+	read_from_pipe(sizeof(unsigned int),sizeof(unsigned int),fd[READ],&buffer_size);
+	read_from_pipe(sizeof(unsigned int),buffer_size,fd[READ],&bloomSize);
+	// printf("new %d\n",buffer_size);
+	// printf("new %d\n",bloomSize);
 
     /*Get Countries Directory from pipe*/
 

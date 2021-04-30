@@ -11,25 +11,31 @@
 #include "genericHashTable.h"
 #include "virus.h"
 #include "bloomFilter.h"
+#include "skipList.h"
 
 void read_from_pipe(unsigned int , unsigned int , int , void* );
+int writeSubdirToPipe(void *, void *, void *, void *);
+int mystrcmp(void *, void *);
 
 Virus currentVirus, *virusptr;
 struct tm tempTime={0};
 time_t date1, date2;
-char *lineInput, bufferLine[200], *token, date[11];
+char *subdirectory, *inputDir, *lineInput, bufferLine[200], *token, date[11];
 size_t fileBufferSize=512;
+struct 	dirent *direntp;
+unsigned int numMonitors, message_size;
+int nwrite;
+enum{READ,WRITE};
 
 int main(int argc, char *argv[]) {
 
-    unsigned int numMonitors, bufferSize, sizeOfBloom, message_size;
-    char *inputDir, *subdirectory, fifoName[2][14], tempString[15];
-    int pid, i, nwrite;
+    unsigned int bufferSize, sizeOfBloom;
+    char fifoName[2][14], tempString[15];
+    int pid, i;
     DIR 	*dir_ptr;
-    struct 	dirent *direntp;
     void *message;
+    skipList countriesSkipList;
 
-    enum{READ,WRITE};
 
     /*Checking User's arguments*/
 
@@ -88,6 +94,16 @@ int main(int argc, char *argv[]) {
             case 0:
                 execlp("./Monitor",fifoName[READ],fifoName[WRITE],NULL);
 	    }
+
+        if ((nwrite=write(fd[i][WRITE], &bufferSize, sizeof(unsigned int))) == -1) {
+            perror("Error in Writing"); exit(2);
+        }
+        // printf("%d\n",nwrite);
+
+        if ((nwrite=write(fd[i][WRITE], &sizeOfBloom, sizeof(unsigned int))) == -1) {
+            perror("Error in Writing"); exit(2);
+        }
+        // printf("%d\n",nwrite);
     }
 
     /*Sharing countries subfolders to Monitors*/
@@ -98,32 +114,16 @@ int main(int argc, char *argv[]) {
 
     else {
 
-        i=0;
+        /*Inserting subDirs to countriesSkipList, which results to receiving countries alphabetically*/
+        countriesSkipList = skipList_initializeSkipList();
+
         while ((direntp = readdir(dir_ptr)) != NULL) {
 
             if (!strcmp(direntp->d_name,".") || !strcmp(direntp->d_name,"..")) continue;
-
-            subdirectory = (char*) malloc(strlen(inputDir)+strlen(direntp->d_name)+2);
-            strcpy(subdirectory,inputDir);
-            strcat(subdirectory,"/");
-            strcat(subdirectory,direntp->d_name);
-            printf("%d %s %s %ld\n",i,direntp->d_name, subdirectory, strlen(subdirectory));
-
-            message_size = strlen(subdirectory)+1;
-
-            if ((nwrite=write(fd[i][WRITE], &message_size, sizeof(unsigned int))) == -1) {
-                perror("Error in Writing"); exit(2);
-            }
-            // printf("%d\n",nwrite);
-
-            if ((nwrite=write(fd[i][WRITE], subdirectory, message_size)) == -1) {
-                perror("Error in Writing"); exit(2);
-            }
-            // printf("%d\n",nwrite);
-
-            free(subdirectory);
-            i = (++i) % numMonitors;
+            skipList_insertValue(countriesSkipList,direntp->d_name,strlen(direntp->d_name)+1,&mystrcmp);
         }
+
+        skipList_applyToAll(countriesSkipList,fd,NULL,NULL,&writeSubdirToPipe);
         closedir(dir_ptr);
     }
     free(inputDir);
@@ -185,35 +185,68 @@ int main(int argc, char *argv[]) {
 
     /*Getting user's input*/
 
-	// lineInput = malloc(sizeof(char)*fileBufferSize);
+	lineInput = malloc(sizeof(char)*fileBufferSize);
 
-    // getline(&lineInput, &fileBufferSize, stdin);
-    // strcpy(bufferLine,lineInput);
-    // token = strtok(lineInput, " \t\n");
+    getline(&lineInput, &fileBufferSize, stdin);
+    strcpy(bufferLine,lineInput);
+    token = strtok(lineInput, " \t\n");
 
-    // while (strcmp("/exit",token)) {
+    while (strcmp("/exit",token)) {
 
-    //     if (!strcmp(token,"/travelRequest")) {
+        if (!strcmp(token,"/travelRequest")) {
 
-    //     }
-    //     else if (!strcmp(token,"/travelStats")) {
+        }
+        else if (!strcmp(token,"/travelStats")) {
 
-    //     }
-    //     else if (!strcmp(token,"/addVaccinationRecords")) {
+        }
+        else if (!strcmp(token,"/addVaccinationRecords")) {
 
-    //     }
-    //     else if (!strcmp(token,"/searchVaccinationStatus")) {
+        }
+        else if (!strcmp(token,"/searchVaccinationStatus")) {
 
-    //     }
-    //     else printf("Please type a valid command.\n");
+        }
+        else printf("Please type a valid command.\n");
 
-    //     getline(&lineInput, &fileBufferSize, stdin);
-    //     strcpy(bufferLine,lineInput);
-    //     token = strtok(lineInput, " \t\n");
-    // }
+        getline(&lineInput, &fileBufferSize, stdin);
+        strcpy(bufferLine,lineInput);
+        token = strtok(lineInput, " \t\n");
+    }
 
-    // free(lineInput);
+    free(lineInput);
+    skipList_destroy(countriesSkipList);
+    for (i=0 ; i<numMonitors ; i++) hash_destroy(bloomHashes[i]);
     sleep(5);
+}
+
+int writeSubdirToPipe(void *data1, void *fd, void *data3, void *data4) {
+
+    static int i=0;
+
+    subdirectory = (char*) malloc(strlen(inputDir)+strlen((char*)data1)+2);
+    strcpy(subdirectory,inputDir);
+    strcat(subdirectory,"/");
+    strcat(subdirectory,(char*)data1);
+    printf("%d %s %s %ld\n",i,(char*)data1, subdirectory, strlen(subdirectory));
+
+    message_size = strlen(subdirectory)+1;
+
+    if ((nwrite=write(((int(*)[2])fd)[i][WRITE], &message_size, sizeof(unsigned int))) == -1) {
+        perror("Error in Writing"); exit(2);
+    }
+    // printf("%d\n",nwrite);
+
+    if ((nwrite=write(((int(*)[2])fd)[i][WRITE], subdirectory, message_size)) == -1) {
+        perror("Error in Writing"); exit(2);
+    }
+    // printf("%d\n",nwrite);
+
+    free(subdirectory);
+    i = (++i) % numMonitors;
+}
+
+int mystrcmp(void *str1, void *str2) {
+
+    return strcmp((char*)str1,(char*)str2);
 }
 
 void read_from_pipe(unsigned int message_size, unsigned int buffer_size, int fd, void* message) {
