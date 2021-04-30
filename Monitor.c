@@ -17,7 +17,6 @@
 #include "bloomFilter.h"
 #include "utils.h"
 
-/*bloomsize and buffersize*/
 
 genericHashTable tempStatisticsHash, virusHash, recordsHash, countriesHash;
 Record currentRecord, *recordPtr;
@@ -28,18 +27,18 @@ struct tm tempTime={0};
 time_t date1, date2;
 char *lineInput, bufferLine[200], *token, date[11];
 size_t fileBufferSize=512;
-unsigned int bloomSize=20;
-int fd[2];
+unsigned int bloomSize, acceptedReq=0, rejectedReq=0;
+int fdes[2];
 enum{READ,WRITE};
 
 int main(int argc, char *argv[]) {
 
 	FILE *citizenRecordsFile;
-    unsigned int buffer_size = 10, message_size;
+    unsigned int buffer_size, message_size;
     void *message;
 	DIR 	*dir_ptr;
     struct 	dirent *direntp;
-	char *subFileName, countryName[20], tempString[12];
+	char *subFileName, countryName[20], tempString[12], boolReq;
 	int nwrite;
 
 
@@ -47,9 +46,9 @@ int main(int argc, char *argv[]) {
 
     if (argc!=2) { printf("Error in Monitor arguments\n"); exit(1); }
 
-	if ( (fd[READ]=open(argv[1], O_RDWR)) < 0)
+	if ( (fdes[READ]=open(argv[1], O_RDWR)) < 0)
 		{ perror("fife open error"); exit(1); }
-    if ( (fd[WRITE]=open(argv[0], O_WRONLY| O_NONBLOCK)) < 0)
+    if ( (fdes[WRITE]=open(argv[0], O_WRONLY| O_NONBLOCK)) < 0)
 		{ perror("fife open error"); exit(1); }
 
  	/*Initializing hashes for country, virus and records*/
@@ -61,8 +60,8 @@ int main(int argc, char *argv[]) {
 
 	// printf("old %d\n",buffer_size);
 	// printf("old %d\n",bloomSize);
-	read_from_pipe(sizeof(unsigned int),sizeof(unsigned int),fd[READ],&buffer_size);
-	read_from_pipe(sizeof(unsigned int),buffer_size,fd[READ],&bloomSize);
+	read_from_pipe(sizeof(unsigned int),sizeof(unsigned int),fdes[READ],&buffer_size);
+	read_from_pipe(sizeof(unsigned int),buffer_size,fdes[READ],&bloomSize);
 	// printf("new %d\n",buffer_size);
 	// printf("new %d\n",bloomSize);
 
@@ -70,10 +69,10 @@ int main(int argc, char *argv[]) {
 
 	lineInput = malloc(sizeof(char)*fileBufferSize);
 
-	read_from_pipe(sizeof(message_size),buffer_size,fd[READ],&message_size);
+	read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
 	// printf("Message Received: %d\n", message_size);
 	message = malloc(message_size);
-	read_from_pipe(message_size,buffer_size,fd[READ],message);
+	read_from_pipe(message_size,buffer_size,fdes[READ],message);
 	printf("Monitor Received: %s\n", (char*)message);
 
 	while (strcmp(message,"_COUNTRIES_END")) {
@@ -126,10 +125,10 @@ int main(int argc, char *argv[]) {
 		// bloomFilter_search(virusPtr->bloomFilter,bloomSize,"3");
 		// bloomFilter_search(virusPtr->bloomFilter,bloomSize,"15");
 
-		read_from_pipe(sizeof(message_size),buffer_size,fd[READ],&message_size);
+		read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
 		// printf("Message Received: %d\n", message_size);
 		message = malloc(message_size);
-		read_from_pipe(message_size,buffer_size,fd[READ],message);
+		read_from_pipe(message_size,buffer_size,fdes[READ],message);
 		printf("Monitor Received: %s\n", (char*)message);
 	}
 	free(message);
@@ -140,19 +139,59 @@ int main(int argc, char *argv[]) {
 	/*Indicate the end of bloom filters*/
 	message_size=11;
     strcpy(tempString,"_BLOOM_END");
-	if ((nwrite=write(fd[WRITE], &message_size, sizeof(unsigned int))) == -1) {
+	if ((nwrite=write(fdes[WRITE], &message_size, sizeof(unsigned int))) == -1) {
 		perror("Error in Writing"); exit(2);
 	}
 
-	if ((nwrite=write(fd[WRITE], tempString, message_size)) == -1) {
+	if ((nwrite=write(fdes[WRITE], tempString, message_size)) == -1) {
 		perror("Error in Writing"); exit(2);
 	}
 	// printf("END\n");
 
+
+
+	/*Receive Command from Travel Monitor*/
+
+	read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
+	// printf("Message Received: %d\n", message_size);
+	message = malloc(message_size);
+	read_from_pipe(message_size,buffer_size,fdes[READ],message);
+	printf("Monitor Received: %s\n", (char*)message);
+
+	if (!strcmp((char*)message,"_TRAVEL_REQ")) {
+
+		read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
+		// printf("Message Received: %d\n", message_size);
+		read_from_pipe(message_size,buffer_size,fdes[READ],currentRecord.citizenID);
+		printf("Monitor Received: %s\n", currentRecord.citizenID);
+
+		currentVaccData.record = &currentRecord;
+		currentVaccData.dateVaccinated = 0;
+
+		read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
+		// printf("Message Received: %d\n", message_size);
+		message = malloc(message_size);
+		read_from_pipe(message_size,buffer_size,fdes[READ],message);
+		printf("Monitor Received: %s\n", (char*)message);
+
+		virus_initialize(&currentVirus,(char*)message);
+		/*EDO MALLON*/
+		free(message);
+
+		virusPtr = (Virus*) hash_searchValue(virusHash, currentVirus.name, &currentVirus, 0, &virus_compare);
+		virus_searchRecordInVaccinatedType1(virusPtr, &currentVaccData);
+
+		read_from_pipe(sizeof(char),buffer_size,fdes[READ],&boolReq);
+		printf("Monitor Received: %c\n", boolReq);
+
+		if (boolReq==0) acceptedReq++;
+		else rejectedReq++;
+	}
+
 	free(lineInput);
 }
 
-void read_from_pipe(unsigned int message_size, unsigned int buffer_size, int fd, void* message) {
+void read_from_pipe(unsigned int message_size, unsigned int buffer_size, int fdes, void* message) {
 
 
 	unsigned int bytes_to_read, btr_bac, bytes_read, bytes_read_total;
@@ -166,7 +205,7 @@ void read_from_pipe(unsigned int message_size, unsigned int buffer_size, int fd,
 		bytes_read_total = 0;
 
 		do {
-			if ( (bytes_read = read(fd, msgbuf+bytes_read_total, bytes_to_read)) < 0) {
+			if ( (bytes_read = read(fdes, msgbuf+bytes_read_total, bytes_to_read)) < 0) {
 				perror("problem in reading"); exit(5);
 			}
 			bytes_to_read -= bytes_read;
@@ -186,19 +225,19 @@ void sendBloomThroughPipe(void *data1, void *data2) {
 	int nwrite;
 	unsigned int message_size=strlen(virusptr->name)+1;
 
-	if ((nwrite=write(fd[WRITE], &message_size, sizeof(unsigned int))) == -1) {
+	if ((nwrite=write(fdes[WRITE], &message_size, sizeof(unsigned int))) == -1) {
 		perror("Error in Writing"); exit(2);
 	}
 
-	if ((nwrite=write(fd[WRITE], virusptr->name, message_size)) == -1) {
+	if ((nwrite=write(fdes[WRITE], virusptr->name, message_size)) == -1) {
 		perror("Error in Writing"); exit(2);
 	}
 
-	if ((nwrite=write(fd[WRITE], &bloomSize, sizeof(unsigned int))) == -1) {
+	if ((nwrite=write(fdes[WRITE], &bloomSize, sizeof(unsigned int))) == -1) {
 		perror("Error in Writing"); exit(2);
 	}
 
-	if ((nwrite=write(fd[WRITE], virusptr->bloomFilter, bloomSize)) == -1) {
+	if ((nwrite=write(fdes[WRITE], virusptr->bloomFilter, bloomSize)) == -1) {
 		perror("Error in Writing"); exit(2);
 	}
 

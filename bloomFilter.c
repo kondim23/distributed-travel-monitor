@@ -43,7 +43,7 @@ void bloomFilter_bitShift(bloomFilter currentBloomFilter, int size, unsigned int
 }
 
 /*Search char* data in bloomFilter*/
-void bloomFilter_search(bloomFilter currentBloomFilter, int size, char* data) {
+int bloomFilter_search(bloomFilter currentBloomFilter, int size, char* data) {
 
     unsigned long index;
 
@@ -54,12 +54,12 @@ void bloomFilter_search(bloomFilter currentBloomFilter, int size, char* data) {
         
         if (bloomFilter_bitConfirm(currentBloomFilter , size , index )<0) {
             printf("NOT VACCINATED\n");
-            return;
+            return 1;
         }
     }
 
     printf("MAYBE\n");
-    return;
+    return 0;
 }
 
 /*Compute and check the right bit (0 or 1) - used in bloomFilter_search*/

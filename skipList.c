@@ -223,6 +223,36 @@ int skipList_searchValue(skipList currentSkipList, void* value, int (*compare)(v
     return 1;
 }
 
+/*search given value in given skipList*/
+void* skipList_searchReturnValue(skipList currentSkipList, void* value, int (*compare)(void*,void*)) {
+
+    skipListNode* currentSkipListNodePtr;
+
+    if (currentSkipList == NULL) {
+
+        return NULL;
+    }
+
+    currentSkipListNodePtr = currentSkipList->firstLayer;
+
+    while (currentSkipListNodePtr != NULL) {
+
+        /*Reach the right position of this layer*/
+        while (currentSkipListNodePtr->next != NULL && compare(currentSkipListNodePtr->next->data,value) < 0)
+            currentSkipListNodePtr = currentSkipListNodePtr->next;
+
+        /*Values match*/
+        if (currentSkipListNodePtr->next != NULL && compare(currentSkipListNodePtr->next->data,value) == 0) {
+
+            return currentSkipListNodePtr->next->data;
+        }
+        /*Head to lower layer*/
+        currentSkipListNodePtr = currentSkipListNodePtr->lowerLayer;
+    }
+
+    return NULL;
+}
+
 /*remove given value from given skipList*/
 int skipList_removeValue(skipList currentSkipList, void* value, int (*compare)(void*,void*)) {
 

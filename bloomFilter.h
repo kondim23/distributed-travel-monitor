@@ -14,7 +14,7 @@ void bloomFilter_insert(bloomFilter,int,char*);
 void bloomFilter_bitShift(bloomFilter,int,unsigned int);
 
 /*Search char* data in bloomFilter*/
-void bloomFilter_search(bloomFilter,int,char*);
+int bloomFilter_search(bloomFilter,int,char*);
 
 /*Compute and check the right bit (0 or 1) - used in bloomFilter_search*/
 int bloomFilter_bitConfirm(bloomFilter,int,unsigned int);

@@ -12,29 +12,33 @@
 #include "virus.h"
 #include "bloomFilter.h"
 #include "skipList.h"
+#include "country.h"
 
 void read_from_pipe(unsigned int , unsigned int , int , void* );
 int writeSubdirToPipe(void *, void *, void *, void *);
 int mystrcmp(void *, void *);
+unsigned int wrongFormat_command();
 
 Virus currentVirus, *virusptr;
 struct tm tempTime={0};
-time_t date1, date2;
+time_t date1, date2, dateTemp;
 char *subdirectory, *inputDir, *lineInput, bufferLine[200], *token, date[11];
 size_t fileBufferSize=512;
 struct 	dirent *direntp;
-unsigned int numMonitors, message_size;
+unsigned int numMonitors, message_size, acceptedReq=0, rejectedReq=0;
 int nwrite;
+int fdes[2];
 enum{READ,WRITE};
 
 int main(int argc, char *argv[]) {
 
     unsigned int bufferSize, sizeOfBloom;
-    char fifoName[2][14], tempString[15];
+    char fifoName[2][14], tempString[15], citizenID[4], virusName[20], countryFrom[20], countryTo[20], boolReq;
     int pid, i;
     DIR 	*dir_ptr;
     void *message;
     skipList countriesSkipList;
+    MonitoredCountry m_country, *MCountryPtr;
 
 
     /*Checking User's arguments*/
@@ -116,11 +120,13 @@ int main(int argc, char *argv[]) {
 
         /*Inserting subDirs to countriesSkipList, which results to receiving countries alphabetically*/
         countriesSkipList = skipList_initializeSkipList();
+        m_country.monitorNum=0;
 
         while ((direntp = readdir(dir_ptr)) != NULL) {
 
             if (!strcmp(direntp->d_name,".") || !strcmp(direntp->d_name,"..")) continue;
-            skipList_insertValue(countriesSkipList,direntp->d_name,strlen(direntp->d_name)+1,&mystrcmp);
+            strcpy(m_country.name,direntp->d_name);
+            skipList_insertValue(countriesSkipList,&m_country,sizeof(MonitoredCountry),&monitoredCountry_compare);
         }
 
         skipList_applyToAll(countriesSkipList,fd,NULL,NULL,&writeSubdirToPipe);
@@ -195,6 +201,122 @@ int main(int argc, char *argv[]) {
 
         if (!strcmp(token,"/travelRequest")) {
 
+            /*Get Command Arguments*/
+
+            if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
+            strcpy(citizenID,token);
+
+            if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
+            sscanf(token, "%2d-%2d-%4d",&tempTime.tm_mday,&tempTime.tm_mon,&tempTime.tm_year);
+            tempTime.tm_mon--;
+            tempTime.tm_year -= 1900;
+            date1 = mktime(&tempTime);
+
+            if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
+            strcpy(countryFrom,token);
+
+            if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
+            strcpy(countryTo,token);
+
+            if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
+            virus_initialize(&currentVirus,token);
+
+            if ((token = strtok(NULL," \t\n")) != NULL)  {wrongFormat_command(); continue;}
+
+            /*Search in Bloom Filter*/
+
+            strcpy(m_country.name,countryFrom);
+
+            MCountryPtr=skipList_searchReturnValue(countriesSkipList,&m_country,&monitoredCountry_compare);
+            if (MCountryPtr==NULL) {
+
+                printf("REQUEST REJECTED – YOU ARE NOT VACCINATED 1\n");
+                getline(&lineInput, &fileBufferSize, stdin);
+                strcpy(bufferLine,lineInput);
+                token = strtok(lineInput, " \t\n");
+                continue;
+            }
+
+            virusptr=hash_searchValue(bloomHashes[MCountryPtr->monitorNum],currentVirus.name,&currentVirus,0,virus_compare);
+            if (bloomFilter_search(virusptr->bloomFilter,sizeOfBloom,citizenID)){
+
+                printf("REQUEST REJECTED – YOU ARE NOT VACCINATED 2\n");
+                getline(&lineInput, &fileBufferSize, stdin);
+                strcpy(bufferLine,lineInput);
+                token = strtok(lineInput, " \t\n");
+                continue;
+            }
+
+            message_size = 12;
+            strcpy(tempString,"_TRAVEL_REQ");
+            if ((nwrite=write(fd[MCountryPtr->monitorNum][WRITE], &message_size, sizeof(unsigned int))) == -1) {
+                perror("Error in Writing"); exit(2);
+            }
+            // printf("%d\n",nwrite);
+
+            if ((nwrite=write(fd[MCountryPtr->monitorNum][WRITE], tempString, message_size)) == -1) {
+                perror("Error in Writing"); exit(2);
+            }
+            // printf("%d\n",nwrite);
+
+            message_size = strlen(citizenID)+1;
+            if ((nwrite=write(fd[MCountryPtr->monitorNum][WRITE], &message_size, sizeof(unsigned int))) == -1) {
+                perror("Error in Writing"); exit(2);
+            }
+            // printf("%d\n",nwrite);
+
+            if ((nwrite=write(fd[MCountryPtr->monitorNum][WRITE], citizenID, message_size)) == -1) {
+                perror("Error in Writing"); exit(2);
+            }
+            // printf("%d\n",nwrite);
+
+            message_size = strlen(currentVirus.name)+1;
+            if ((nwrite=write(fd[MCountryPtr->monitorNum][WRITE], &message_size, sizeof(unsigned int))) == -1) {
+                perror("Error in Writing"); exit(2);
+            }
+            // printf("%d\n",nwrite);
+
+            if ((nwrite=write(fd[MCountryPtr->monitorNum][WRITE], currentVirus.name, message_size)) == -1) {
+                perror("Error in Writing"); exit(2);
+            }
+            // printf("%d\n",nwrite);
+
+
+            read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
+            message = malloc(message_size);
+            read_from_pipe(message_size,bufferSize,fd[i][READ],message);
+            printf("Travel Received: %s\n", (char*)message);
+
+            if (!strcmp((char*)message,"NO")) {
+
+                printf("REQUEST REJECTED – YOU ARE NOT VACCINATED 3\n");
+                free(message);
+                getline(&lineInput, &fileBufferSize, stdin);
+                strcpy(bufferLine,lineInput);
+                token = strtok(lineInput, " \t\n");
+                continue;
+            }
+            free(message);
+               
+            read_from_pipe(sizeof(time_t),bufferSize,fd[i][READ],&date2);
+            printf("Travel Received: %d\n", (int)date2);
+
+            if (difftime(date1,date2)<=15552000.0){
+
+                printf("REQUEST ACCEPTED – HAPPY TRAVELS\n");
+                acceptedReq++;
+                boolReq = 0;
+            }
+            else {
+                printf("REQUEST REJECTED – YOU WILL NEED ANOTHER VACCINATION BEFORE TRAVEL DATE\n");
+                rejectedReq++;
+                boolReq = 1;
+            }
+
+            if ((nwrite=write(fd[MCountryPtr->monitorNum][WRITE], &boolReq, sizeof(char))) == -1) {
+                perror("Error in Writing"); exit(2);
+            }
+    
         }
         else if (!strcmp(token,"/travelStats")) {
 
@@ -221,12 +343,14 @@ int main(int argc, char *argv[]) {
 int writeSubdirToPipe(void *data1, void *fd, void *data3, void *data4) {
 
     static int i=0;
+    MonitoredCountry *m_country = (MonitoredCountry*) data1;
+    m_country->monitorNum = i;
 
-    subdirectory = (char*) malloc(strlen(inputDir)+strlen((char*)data1)+2);
+    subdirectory = (char*) malloc(strlen(inputDir)+strlen(m_country->name)+2);
     strcpy(subdirectory,inputDir);
     strcat(subdirectory,"/");
-    strcat(subdirectory,(char*)data1);
-    printf("%d %s %s %ld\n",i,(char*)data1, subdirectory, strlen(subdirectory));
+    strcat(subdirectory,m_country->name);
+    printf("%d %s %s %ld\n",i,m_country->name, subdirectory, strlen(subdirectory));
 
     message_size = strlen(subdirectory)+1;
 
@@ -242,11 +366,6 @@ int writeSubdirToPipe(void *data1, void *fd, void *data3, void *data4) {
 
     free(subdirectory);
     i = (++i) % numMonitors;
-}
-
-int mystrcmp(void *str1, void *str2) {
-
-    return strcmp((char*)str1,(char*)str2);
 }
 
 void read_from_pipe(unsigned int message_size, unsigned int buffer_size, int fd, void* message) {
@@ -275,4 +394,14 @@ void read_from_pipe(unsigned int message_size, unsigned int buffer_size, int fd,
 	}
 	free (msgbuf);
 	return;
+}
+
+/*Error message for wrong command format and get new command*/
+unsigned int wrongFormat_command() {
+
+    printf("ERROR\n");
+    getline(&lineInput, &fileBufferSize, stdin);
+    strcpy(bufferLine,lineInput);
+    token = strtok(lineInput, " \t\n");
+    return 1;
 }

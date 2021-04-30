@@ -36,6 +36,8 @@ int skipList_addLayer(skipList);
 /*search given value in given skipList*/
 int skipList_searchValue(skipList , void* , int (*compare)(void*,void*));
 
+void* skipList_searchReturnValue(skipList , void* , int (*compare)(void*,void*));
+
 /*remove given value from given skipList*/
 int skipList_removeValue(skipList , void* , int (*compare)(void*,void*));
 
