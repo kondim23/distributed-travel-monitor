@@ -15,6 +15,7 @@
 #include "Monitor.h"
 #include "skipList.h"
 #include "bloomFilter.h"
+#include "utils.h"
 
 /*bloomsize and buffersize*/
 
@@ -174,6 +175,15 @@ void sendBloomThroughPipe(void *data1, void *data2) {
 
 	Virus *virusptr = (Virus*) data1;
 	int nwrite;
+	unsigned int message_size=strlen(virusptr->name)+1;
+
+	if ((nwrite=write(fd[WRITE], &message_size, sizeof(unsigned int))) == -1) {
+		perror("Error in Writing"); exit(2);
+	}
+
+	if ((nwrite=write(fd[WRITE], virusptr->name, message_size)) == -1) {
+		perror("Error in Writing"); exit(2);
+	}
 
 	if ((nwrite=write(fd[WRITE], &bloomSize, sizeof(unsigned int))) == -1) {
 		perror("Error in Writing"); exit(2);
@@ -323,34 +333,6 @@ unsigned int wrongFormat_record(FILE *input) {
     strcpy(bufferLine,lineInput);
     token = strtok(lineInput, " \t\n");
     return 1;
-}
-
-/*Check for correct chars in given string. Only letters allowed*/
-int argumentsCheck_letters(char * string) {
-
-    for (int i=strlen(string)-1 ; i>=0 ; i--) 
-        if (!(string[i]>96 && string[i]<123) && !(string[i]>64 && string[i]<91)) 
-            return 1;
-    return 0;
-}
-
-/*Check for correct chars in given string. Only letters, numbers and dash allowed*/
-int argumentsCheck_lettersNumbersDash(char *string) {
-
-    for (int i=strlen(string)-1 ; i>=0 ; i--) 
-        if (!(string[i]>96 && string[i]<123) && !(string[i]>64 && string[i]<91) &&\
-             !(string[i]>47 && string[i]<58) && !(string[i]==45)) 
-            return 1;
-    return 0;
-}
-
-/*capitalize of input*/
-void capitalize(char* string) {
-
-    for(int i=strlen(string) ; i>=0 ; i--)
-        if (string[i]>96 && string[i]<123)
-            string[i] -= 32;
-    return;
 }
 
 void getSubDirName(char* path, char* subDirName) {

@@ -2,13 +2,23 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include  <sys/types.h>
-#include  <dirent.h>
+#include <sys/types.h>
+#include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <time.h>
+#include "genericHashTable.h"
+#include "virus.h"
+#include "bloomFilter.h"
 
 void read_from_pipe(unsigned int , unsigned int , int , void* );
+
+Virus currentVirus, *virusptr;
+struct tm tempTime={0};
+time_t date1, date2;
+char *lineInput, bufferLine[200], *token, date[11];
+size_t fileBufferSize=512;
 
 int main(int argc, char *argv[]) {
 
@@ -40,7 +50,13 @@ int main(int argc, char *argv[]) {
             strcpy(inputDir,argv[i+1]);
         }
     }
+
+    /*Storing file descriptors*/
     int fd[numMonitors][2];
+
+    /*bloomHashes hold numMonitors hashes of blooms (a bloom filter per virus)*/
+    genericHashTable bloomHashes[numMonitors];
+    for (i=0 ; i<numMonitors ; i++) bloomHashes[i]=NULL;
 
     /*Creating Named Pipes and Monitor Processes*/
 
@@ -91,7 +107,7 @@ int main(int argc, char *argv[]) {
             strcpy(subdirectory,inputDir);
             strcat(subdirectory,"/");
             strcat(subdirectory,direntp->d_name);
-            // printf("%s %s %ld\n",direntp->d_name, subdirectory, strlen(subdirectory));
+            printf("%d %s %s %ld\n",i,direntp->d_name, subdirectory, strlen(subdirectory));
 
             message_size = strlen(subdirectory)+1;
 
@@ -144,6 +160,19 @@ int main(int argc, char *argv[]) {
 	    while (strcmp(message,"_BLOOM_END")) {
 
             /*Insert in system*/
+
+            virus_initialize(&currentVirus,(char*)message);
+            free(message);
+
+            if (bloomHashes[i]==NULL) bloomHashes[i]=hash_Initialize();
+            virusptr = (Virus*) hash_searchValue(bloomHashes[i],currentVirus.name,&currentVirus,sizeof(Virus),&virus_compare);
+            virusptr->bloomFilter = bloomFilter_create(sizeOfBloom);
+
+            read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
+            message = malloc(message_size);
+            read_from_pipe(message_size,bufferSize,fd[i][READ],virusptr->bloomFilter);
+            printf("Travel Received: %s\n", (char*)virusptr->bloomFilter);
+
             free(message);
 
             read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
@@ -154,7 +183,36 @@ int main(int argc, char *argv[]) {
         free(message);
     }
 
+    /*Getting user's input*/
 
+	// lineInput = malloc(sizeof(char)*fileBufferSize);
+
+    // getline(&lineInput, &fileBufferSize, stdin);
+    // strcpy(bufferLine,lineInput);
+    // token = strtok(lineInput, " \t\n");
+
+    // while (strcmp("/exit",token)) {
+
+    //     if (!strcmp(token,"/travelRequest")) {
+
+    //     }
+    //     else if (!strcmp(token,"/travelStats")) {
+
+    //     }
+    //     else if (!strcmp(token,"/addVaccinationRecords")) {
+
+    //     }
+    //     else if (!strcmp(token,"/searchVaccinationStatus")) {
+
+    //     }
+    //     else printf("Please type a valid command.\n");
+
+    //     getline(&lineInput, &fileBufferSize, stdin);
+    //     strcpy(bufferLine,lineInput);
+    //     token = strtok(lineInput, " \t\n");
+    // }
+
+    // free(lineInput);
     sleep(5);
 }
 
