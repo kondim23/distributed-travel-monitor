@@ -16,6 +16,7 @@
 #include "pipe.h"
 #include "travelMonitor.h"
 #include "request.h"
+#include "utils.h"
 
 Virus currentVirus, *virusptr;
 genericHashTable requestsHash;
@@ -124,6 +125,7 @@ int main(int argc, char *argv[]) {
 
             if (!strcmp(direntp->d_name,".") || !strcmp(direntp->d_name,"..")) continue;
             strcpy(m_country.name,direntp->d_name);
+            // capitalize(m_country.name);
             skipList_insertValue(countriesSkipList,&m_country,sizeof(MonitoredCountry),&monitoredCountry_compare);
         }
 
@@ -206,9 +208,11 @@ int main(int argc, char *argv[]) {
 
             if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
             strcpy(countryFrom,token);
+            capitalize(countryFrom);
 
             if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
             strcpy(countryTo,token);
+            capitalize(countryTo);
 
             if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
             virus_initialize(&currentVirus,token);
@@ -296,6 +300,7 @@ int main(int argc, char *argv[]) {
             if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
             // virus_initialize(&currentVirus,token);
             strcpy(reqCompare.virusName,token);
+            capitalize(reqCompare.virusName);
 
             if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
             sscanf(token, "%2d-%2d-%4d",&tempTime.tm_mday,&tempTime.tm_mon,&tempTime.tm_year);
@@ -311,7 +316,10 @@ int main(int argc, char *argv[]) {
             date2 = mktime(&tempTime);
             reqCompare.date2 = date2;
 
-            if ((token = strtok(NULL," \t\n")) != NULL) strcpy(reqCompare.countryName,token);
+            if ((token = strtok(NULL," \t\n")) != NULL) {
+                strcpy(reqCompare.countryName,token);
+                capitalize(reqCompare.countryName); 
+            }
             else strcpy(reqCompare.countryName,"");
 
             reqCompare.statistics.acceptedReq=0;

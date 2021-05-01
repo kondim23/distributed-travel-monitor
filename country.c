@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "country.h"
+#include "utils.h"
 
 /*Return name of country*/
 char* country_getName(Country *country) {
@@ -16,5 +17,9 @@ int country_compare(void* data1, void* data2){
 
 int monitoredCountry_compare(void *str1, void *str2) {
 
-    return strcmp(((MonitoredCountry*)str1)->name,((MonitoredCountry*)str2)->name);
+    char countryName[20];
+    strcpy(countryName,((MonitoredCountry*)str1)->name);
+    capitalize(countryName);
+
+    return strcmp(countryName,((MonitoredCountry*)str2)->name);
 }

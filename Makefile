@@ -14,7 +14,7 @@ all: $(OBJS)
 bloomFilter.o: bloomFilter.c bloomFilter.h
 	$(CC) $(FLAGS) bloomFilter.c
 
-country.o: country.c country.h
+country.o: country.c country.h utils.h
 	$(CC) $(FLAGS) country.c
 
 genericHashTable.o: genericHashTable.c genericHashTable.h bloomFilter.h
@@ -41,7 +41,7 @@ vaccinationData.o: vaccinationData.c vaccinationData.h record.h country.h generi
 Monitor.o: Monitor.c $(HEADER)
 	$(CC) $(FLAGS) Monitor.c
 
-travelMonitor.o: travelMonitor.c genericHashTable.h virus.h bloomFilter.h pipe.h travelMonitor.h request.h
+travelMonitor.o: travelMonitor.c genericHashTable.h virus.h bloomFilter.h pipe.h travelMonitor.h request.h utils.h
 	$(CC) $(FLAGS) travelMonitor.c
 
 virus.o: virus.c virus.h record.h skipList.h bloomFilter.h vaccinationData.h Monitor.h
