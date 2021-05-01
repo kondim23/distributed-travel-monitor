@@ -15,6 +15,7 @@
 #include "country.h"
 
 void read_from_pipe(unsigned int , unsigned int , int , void* );
+void write_to_pipe(unsigned int , unsigned int , int , void* );
 int writeSubdirToPipe(void *, void *, void *, void *);
 int mystrcmp(void *, void *);
 unsigned int wrongFormat_command();
@@ -25,14 +26,14 @@ time_t date1, date2, dateTemp;
 char *subdirectory, *inputDir, *lineInput, bufferLine[200], *token, date[11];
 size_t fileBufferSize=512;
 struct 	dirent *direntp;
-unsigned int numMonitors, message_size, acceptedReq=0, rejectedReq=0;
+unsigned int bufferSize, numMonitors, message_size,buffer_size, acceptedReq=0, rejectedReq=0;
 int nwrite;
 int fdes[2];
 enum{READ,WRITE};
 
 int main(int argc, char *argv[]) {
 
-    unsigned int bufferSize, sizeOfBloom;
+    unsigned int sizeOfBloom;
     char fifoName[2][14], tempString[13], citizenID[4], virusName[20], countryFrom[20], countryTo[20], boolReq;
     int pid, i;
     DIR 	*dir_ptr;
@@ -99,15 +100,9 @@ int main(int argc, char *argv[]) {
                 execlp("./Monitor",fifoName[READ],fifoName[WRITE],NULL);
 	    }
 
-        if ((nwrite=write(fd[i][WRITE], &bufferSize, sizeof(unsigned int))) == -1) {
-            perror("Error in Writing"); exit(2);
-        }
-        // printf("%d\n",nwrite);
+        write_to_pipe(sizeof(unsigned int) , bufferSize , fd[i][WRITE] , &bufferSize );
+        write_to_pipe(sizeof(unsigned int) , bufferSize , fd[i][WRITE] , &sizeOfBloom );
 
-        if ((nwrite=write(fd[i][WRITE], &sizeOfBloom, sizeof(unsigned int))) == -1) {
-            perror("Error in Writing"); exit(2);
-        }
-        // printf("%d\n",nwrite);
     }
 
     /*Sharing countries subfolders to Monitors*/
@@ -141,16 +136,10 @@ int main(int argc, char *argv[]) {
     message_size=15;
     strcpy(tempString,"_COUNTRIES_END");
     for (int i=0 ; i<numMonitors ; i++) {
-    
-        if ((nwrite=write(fd[i][WRITE], &message_size, sizeof(unsigned int))) == -1) {
-            perror("Error in Writing"); exit(2);
-        }
-        // printf("%d\n",nwrite);
 
-        if ((nwrite=write(fd[i][WRITE], tempString, message_size)) == -1) {
-            perror("Error in Writing"); exit(2);
-        }
-        // printf("%d\n",nwrite);
+        write_to_pipe(sizeof(unsigned int) , bufferSize , fd[i][WRITE] , &message_size );
+        write_to_pipe(message_size , bufferSize , fd[i][WRITE] , tempString );
+
     }
 
 
@@ -249,38 +238,13 @@ int main(int argc, char *argv[]) {
 
             message_size = 12;
             strcpy(tempString,"_TRAVEL_REQ");
-            if ((nwrite=write(fd[MCountryPtr->monitorNum][WRITE], &message_size, sizeof(unsigned int))) == -1) {
-                perror("Error in Writing"); exit(2);
-            }
-            // printf("%d\n",nwrite);
 
-            if ((nwrite=write(fd[MCountryPtr->monitorNum][WRITE], tempString, message_size)) == -1) {
-                perror("Error in Writing"); exit(2);
-            }
-            // printf("%d\n",nwrite);
-
-            message_size = strlen(citizenID)+1;
-            if ((nwrite=write(fd[MCountryPtr->monitorNum][WRITE], &message_size, sizeof(unsigned int))) == -1) {
-                perror("Error in Writing"); exit(2);
-            }
-            // printf("%d\n",nwrite);
-
-            if ((nwrite=write(fd[MCountryPtr->monitorNum][WRITE], citizenID, message_size)) == -1) {
-                perror("Error in Writing"); exit(2);
-            }
-            // printf("%d\n",nwrite);
-
-            message_size = strlen(currentVirus.name)+1;
-            if ((nwrite=write(fd[MCountryPtr->monitorNum][WRITE], &message_size, sizeof(unsigned int))) == -1) {
-                perror("Error in Writing"); exit(2);
-            }
-            // printf("%d\n",nwrite);
-
-            if ((nwrite=write(fd[MCountryPtr->monitorNum][WRITE], currentVirus.name, message_size)) == -1) {
-                perror("Error in Writing"); exit(2);
-            }
-            // printf("%d\n",nwrite);
-
+            write_to_pipe(sizeof(unsigned int) , bufferSize , fd[MCountryPtr->monitorNum][WRITE] , &message_size );
+            write_to_pipe(message_size , bufferSize , fd[MCountryPtr->monitorNum][WRITE] , tempString );
+            write_to_pipe(sizeof(unsigned int) , bufferSize , fd[MCountryPtr->monitorNum][WRITE] , &message_size );
+            write_to_pipe(message_size , bufferSize , fd[MCountryPtr->monitorNum][WRITE] , citizenID );
+            write_to_pipe(sizeof(unsigned int) , bufferSize , fd[MCountryPtr->monitorNum][WRITE] , &message_size );
+            write_to_pipe(message_size , bufferSize , fd[MCountryPtr->monitorNum][WRITE] , currentVirus.name );
 
             read_from_pipe(sizeof(message_size),bufferSize,fd[MCountryPtr->monitorNum][READ],&message_size);
             message = malloc(message_size);
@@ -312,10 +276,8 @@ int main(int argc, char *argv[]) {
                 rejectedReq++;
                 boolReq = 1;
             }
+            write_to_pipe(sizeof(char) , bufferSize , fd[MCountryPtr->monitorNum][WRITE] , &boolReq );
 
-            if ((nwrite=write(fd[MCountryPtr->monitorNum][WRITE], &boolReq, sizeof(char))) == -1) {
-                perror("Error in Writing"); exit(2);
-            }
     
         }
         else if (!strcmp(token,"/travelStats")) {
@@ -335,26 +297,16 @@ int main(int argc, char *argv[]) {
 
                 message_size = 13;
                 strcpy(tempString,"_VACSTAT_REQ");
-                if ((nwrite=write(fd[i][WRITE], &message_size, sizeof(unsigned int))) == -1) {
-                    perror("Error in Writing"); exit(2);
-                }
-                // printf("%d\n",nwrite);
 
-                if ((nwrite=write(fd[i][WRITE], tempString, message_size)) == -1) {
-                    perror("Error in Writing"); exit(2);
-                }
-                // printf("%d\n",nwrite);
+                write_to_pipe(sizeof(unsigned int) , bufferSize , fd[i][WRITE] , &message_size );
+                write_to_pipe(message_size , bufferSize , fd[i][WRITE] , tempString );
+
 
                 message_size = strlen(citizenID)+1;
-                if ((nwrite=write(fd[i][WRITE], &message_size, sizeof(unsigned int))) == -1) {
-                    perror("Error in Writing"); exit(2);
-                }
-                // printf("%d\n",nwrite);
 
-                if ((nwrite=write(fd[i][WRITE], citizenID, message_size)) == -1) {
-                    perror("Error in Writing"); exit(2);
-                }
-                // printf("%d\n",nwrite);
+                write_to_pipe(sizeof(unsigned int) , bufferSize , fd[i][WRITE] , &message_size );
+                write_to_pipe(message_size , bufferSize , fd[i][WRITE] , citizenID );
+
             }
 
             for (i=0 ; i<numMonitors ; i++) {
@@ -451,15 +403,9 @@ int writeSubdirToPipe(void *data1, void *fd, void *data3, void *data4) {
 
     message_size = strlen(subdirectory)+1;
 
-    if ((nwrite=write(((int(*)[2])fd)[i][WRITE], &message_size, sizeof(unsigned int))) == -1) {
-        perror("Error in Writing"); exit(2);
-    }
-    // printf("%d\n",nwrite);
+    write_to_pipe(sizeof(unsigned int) , bufferSize , ((int(*)[2])fd)[i][WRITE] , &message_size );
+    write_to_pipe(message_size , bufferSize , ((int(*)[2])fd)[i][WRITE] , subdirectory );
 
-    if ((nwrite=write(((int(*)[2])fd)[i][WRITE], subdirectory, message_size)) == -1) {
-        perror("Error in Writing"); exit(2);
-    }
-    // printf("%d\n",nwrite);
 
     free(subdirectory);
     i = (++i) % numMonitors;
@@ -488,6 +434,32 @@ void read_from_pipe(unsigned int message_size, unsigned int buffer_size, int fd,
 
 		message_size -= btr_bac;
 		memcpy(message+i*buffer_size,msgbuf,btr_bac);
+	}
+	free (msgbuf);
+	return;
+}
+
+void write_to_pipe(unsigned int message_size, unsigned int buffer_size, int fd, void* message) {
+
+	unsigned int bytes_to_write, btw_bac, bytes_written, total_written_bytes;
+	void* msgbuf = malloc(buffer_size);
+	
+	for (int i=0 ; message_size>0 ; i++) {
+
+		bytes_to_write = message_size>buffer_size ? buffer_size : message_size;
+		btw_bac = bytes_to_write;
+		total_written_bytes = 0;
+		memcpy(msgbuf,message+i*buffer_size,btw_bac);
+
+		do {
+			if ( (bytes_written = write(fd, msgbuf+total_written_bytes, bytes_to_write)) < 0) {
+				perror("problem in writing"); exit(5);
+			}
+			bytes_to_write -= bytes_written;
+			total_written_bytes += bytes_written;
+		} while (bytes_to_write>0);
+
+		message_size -= btw_bac;
 	}
 	free (msgbuf);
 	return;

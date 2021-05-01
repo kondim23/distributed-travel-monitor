@@ -8,8 +8,10 @@
 #include "bloomFilter.h"
 #include "vaccinationData.h"
 #include "utils.h"
+#include "Monitor.h"
 
 extern int fdes[2];
+extern unsigned int buffer_size;
 enum{READ,WRITE};
 
 /*Compare two given viruses based on their name*/
@@ -33,49 +35,36 @@ void virus_searchRecordInVaccinatedType1(void *dataToCompare, void *currentData)
 
         message_size=3;
         strcpy(tempString,"NO");
-        if ((write(fdes[WRITE], &message_size, sizeof(unsigned int))) == -1) {
-            perror("Error in Writing"); exit(2);
-        }
 
-        if ((write(fdes[WRITE], tempString, message_size)) == -1) {
-            perror("Error in Writing"); exit(2);
-        }
+	    write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
+	    write_to_pipe(message_size , buffer_size , fdes[WRITE] , tempString );
+
     }
     else {
 
         /*If user has been vaccinated on this virus*/
         if (!skipList_searchValue(virusPtr->vaccinated_persons, currentVaccData, &vaccData_compare)) {
 
-            // strftime(date, 11, "%d-%m-%Y",localtime(&(currentVaccData->dateVaccinated)));
-            // printf("VACCINATED ON %s\n",date);
-
             message_size=4;
             strcpy(tempString,"YES");
-            if ((write(fdes[WRITE], &message_size, sizeof(unsigned int))) == -1) {
-                perror("Error in Writing"); exit(2);
-            }
 
-            if ((write(fdes[WRITE], tempString, message_size)) == -1) {
-                perror("Error in Writing"); exit(2);
-            }
+	        write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
+            write_to_pipe(message_size , buffer_size , fdes[WRITE] , tempString );
+
 
             message_size=sizeof(time_t);
-            if ((write(fdes[WRITE], &(currentVaccData->dateVaccinated), message_size)) == -1) {
-                perror("Error in Writing"); exit(2);
-            }
+	        write_to_pipe(message_size , buffer_size , fdes[WRITE] , &(currentVaccData->dateVaccinated) );
+
 
         }
         else {
 
             message_size=3;
             strcpy(tempString,"NO");
-            if ((write(fdes[WRITE], &message_size, sizeof(unsigned int))) == -1) {
-                perror("Error in Writing"); exit(2);
-            }
 
-            if ((write(fdes[WRITE], tempString, message_size)) == -1) {
-                perror("Error in Writing"); exit(2);
-            }
+	        write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
+	        write_to_pipe(message_size , buffer_size , fdes[WRITE] , tempString );
+
         }
     }
     return;
@@ -92,21 +81,17 @@ void virus_searchRecordInVaccinatedType2(void *dataToCompare, void *currentData)
     char tempString[4];
 
     message_size=strlen(virusPtr->name)+1;
-    if ((write(fdes[WRITE], &message_size, sizeof(unsigned int))) == -1) {
-        perror("Error in Writing"); exit(2);
-    }
 
-    if ((write(fdes[WRITE], virusPtr->name, message_size)) == -1) {
-        perror("Error in Writing"); exit(2);
-    }
+	write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
+	write_to_pipe(message_size , buffer_size , fdes[WRITE] , virusPtr->name );
+
 
     /*If noone has been vaccinated on this virus*/
     if (virusPtr->vaccinated_persons == NULL) {
 
         boolReq=1;
-        if ((write(fdes[WRITE], &boolReq, sizeof(char))) == -1) {
-            perror("Error in Writing"); exit(2);
-        }
+	    write_to_pipe(sizeof(char) , buffer_size , fdes[WRITE] , &boolReq );
+
     }
 
     else {
@@ -117,21 +102,17 @@ void virus_searchRecordInVaccinatedType2(void *dataToCompare, void *currentData)
             // strftime(date, 11, "%d-%m-%Y",localtime(&(currentVaccData->dateVaccinated)));
 
             boolReq=0;
-            if ((write(fdes[WRITE], &boolReq, sizeof(char))) == -1) {
-                perror("Error in Writing"); exit(2);
-            }
-
+	        write_to_pipe(sizeof(char) , buffer_size , fdes[WRITE] , &boolReq );
+            
             message_size=sizeof(time_t);
-            if ((write(fdes[WRITE], &(currentVaccData->dateVaccinated), message_size)) == -1) {
-                perror("Error in Writing"); exit(2);
-            }
+	        write_to_pipe(message_size , buffer_size , fdes[WRITE] , &(currentVaccData->dateVaccinated) );
+
         }
         else {
 
             boolReq=1;
-            if ((write(fdes[WRITE], &boolReq, sizeof(char))) == -1) {
-                perror("Error in Writing"); exit(2);
-            }
+	        write_to_pipe(sizeof(char) , buffer_size , fdes[WRITE] , &boolReq );
+
         }
     }
     return;

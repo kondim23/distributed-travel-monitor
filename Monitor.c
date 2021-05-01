@@ -27,14 +27,14 @@ struct tm tempTime={0};
 time_t date1, date2;
 char *lineInput, bufferLine[200], *token, date[11];
 size_t fileBufferSize=512;
-unsigned int bloomSize, acceptedReq=0, rejectedReq=0;
+unsigned int buffer_size=10, bloomSize, acceptedReq=0, rejectedReq=0;
 int fdes[2];
 enum{READ,WRITE};
 
 int main(int argc, char *argv[]) {
 
 	FILE *citizenRecordsFile;
-    unsigned int buffer_size, message_size;
+    unsigned int message_size;
     void *message;
 	DIR 	*dir_ptr;
     struct 	dirent *direntp;
@@ -58,11 +58,11 @@ int main(int argc, char *argv[]) {
 
 	/*Get buffer size and bloom size from pipe*/
 
-	// printf("old %d\n",buffer_size);
+	printf("old %d\n",buffer_size);
 	// printf("old %d\n",bloomSize);
 	read_from_pipe(sizeof(unsigned int),sizeof(unsigned int),fdes[READ],&buffer_size);
 	read_from_pipe(sizeof(unsigned int),buffer_size,fdes[READ],&bloomSize);
-	// printf("new %d\n",buffer_size);
+	printf("new %d\n",buffer_size);
 	// printf("new %d\n",bloomSize);
 
     /*Get Countries Directory from pipe*/
@@ -139,14 +139,10 @@ int main(int argc, char *argv[]) {
 	/*Indicate the end of bloom filters*/
 	message_size=11;
     strcpy(tempString,"_BLOOM_END");
-	if ((nwrite=write(fdes[WRITE], &message_size, sizeof(unsigned int))) == -1) {
-		perror("Error in Writing"); exit(2);
-	}
 
-	if ((nwrite=write(fdes[WRITE], tempString, message_size)) == -1) {
-		perror("Error in Writing"); exit(2);
-	}
-	// printf("END\n");
+	write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
+	write_to_pipe(message_size , buffer_size , fdes[WRITE] , tempString );
+
 
 
 
@@ -203,51 +199,38 @@ int main(int argc, char *argv[]) {
 
 				tempStr = record_getCitizenName(recordPtr);
 				message_size=strlen(tempStr)+1;
-				if ((write(fdes[WRITE], &message_size, sizeof(unsigned int))) == -1) {
-					perror("Error in Writing"); exit(2);
-				}
 
-				if ((write(fdes[WRITE], tempStr, message_size)) == -1) {
-					perror("Error in Writing"); exit(2);
-				}
+				write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
+				write_to_pipe(message_size , buffer_size , fdes[WRITE] , tempStr );
+
 
 				tempStr = record_getCitizenSurname(recordPtr);
 				message_size=strlen(tempStr)+1;
-				if ((write(fdes[WRITE], &message_size, sizeof(unsigned int))) == -1) {
-					perror("Error in Writing"); exit(2);
-				}
 
-				if ((write(fdes[WRITE], tempStr, message_size)) == -1) {
-					perror("Error in Writing"); exit(2);
-				}
+				write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
+				write_to_pipe(message_size , buffer_size , fdes[WRITE] , tempStr );
+
 
 				tempStr = country_getName(record_getCountry(recordPtr));
 				message_size=strlen(tempStr)+1;
-				if ((write(fdes[WRITE], &message_size, sizeof(unsigned int))) == -1) {
-					perror("Error in Writing"); exit(2);
-				}
 
-				if ((write(fdes[WRITE], tempStr, message_size)) == -1) {
-					perror("Error in Writing"); exit(2);
-				}
+				write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
+				write_to_pipe(message_size , buffer_size , fdes[WRITE] , tempStr );
+
 
 				boolReq = record_getAge(recordPtr);
-				if ((write(fdes[WRITE], &boolReq, sizeof(char))) == -1) {
-					perror("Error in Writing"); exit(2);
-				}
+				write_to_pipe(sizeof(char) , buffer_size , fdes[WRITE] , &boolReq );
+
 
             	hash_applyToAllNodes(virusHash, &currentVaccData, &virus_searchRecordInVaccinatedType2);
 			}
 
 			message_size=13;
 			strcpy(tempString,"_VACSTAT_END");
-			if ((write(fdes[WRITE], &message_size, sizeof(unsigned int))) == -1) {
-				perror("Error in Writing"); exit(2);
-			}
 
-			if ((write(fdes[WRITE], tempString, message_size)) == -1) {
-				perror("Error in Writing"); exit(2);
-			}
+			write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
+			write_to_pipe(message_size , buffer_size , fdes[WRITE] , tempString );
+
 
 		}
 
@@ -289,27 +272,42 @@ void read_from_pipe(unsigned int message_size, unsigned int buffer_size, int fde
 	return;
 }
 
+void write_to_pipe(unsigned int message_size, unsigned int buffer_size, int fd, void* message) {
+
+	unsigned int bytes_to_write, btw_bac, bytes_written, total_written_bytes;
+	void* msgbuf = malloc(buffer_size);
+	
+	for (int i=0 ; message_size>0 ; i++) {
+
+		bytes_to_write = message_size>buffer_size ? buffer_size : message_size;
+		btw_bac = bytes_to_write;
+		total_written_bytes = 0;
+		memcpy(msgbuf,message+i*buffer_size,btw_bac);
+
+		do {
+			if ( (bytes_written = write(fd, msgbuf+total_written_bytes, bytes_to_write)) < 0) {
+				perror("problem in writing"); exit(5);
+			}
+			bytes_to_write -= bytes_written;
+			total_written_bytes += bytes_written;
+		} while (bytes_to_write>0);
+
+		message_size -= btw_bac;
+	}
+	free (msgbuf);
+	return;
+}
+
 void sendBloomThroughPipe(void *data1, void *data2) {
 
 	Virus *virusptr = (Virus*) data1;
 	int nwrite;
 	unsigned int message_size=strlen(virusptr->name)+1;
 
-	if ((nwrite=write(fdes[WRITE], &message_size, sizeof(unsigned int))) == -1) {
-		perror("Error in Writing"); exit(2);
-	}
-
-	if ((nwrite=write(fdes[WRITE], virusptr->name, message_size)) == -1) {
-		perror("Error in Writing"); exit(2);
-	}
-
-	if ((nwrite=write(fdes[WRITE], &bloomSize, sizeof(unsigned int))) == -1) {
-		perror("Error in Writing"); exit(2);
-	}
-
-	if ((nwrite=write(fdes[WRITE], virusptr->bloomFilter, bloomSize)) == -1) {
-		perror("Error in Writing"); exit(2);
-	}
+	write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
+	write_to_pipe(message_size , buffer_size , fdes[WRITE] , virusptr->name );
+	write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &bloomSize );
+	write_to_pipe(bloomSize , buffer_size , fdes[WRITE] , virusptr->bloomFilter );
 
 	return;
 }
