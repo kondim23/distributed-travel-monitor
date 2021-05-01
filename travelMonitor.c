@@ -33,7 +33,7 @@ enum{READ,WRITE};
 int main(int argc, char *argv[]) {
 
     unsigned int bufferSize, sizeOfBloom;
-    char fifoName[2][14], tempString[15], citizenID[4], virusName[20], countryFrom[20], countryTo[20], boolReq;
+    char fifoName[2][14], tempString[13], citizenID[4], virusName[20], countryFrom[20], countryTo[20], boolReq;
     int pid, i;
     DIR 	*dir_ptr;
     void *message;
@@ -282,9 +282,9 @@ int main(int argc, char *argv[]) {
             // printf("%d\n",nwrite);
 
 
-            read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
+            read_from_pipe(sizeof(message_size),bufferSize,fd[MCountryPtr->monitorNum][READ],&message_size);
             message = malloc(message_size);
-            read_from_pipe(message_size,bufferSize,fd[i][READ],message);
+            read_from_pipe(message_size,bufferSize,fd[MCountryPtr->monitorNum][READ],message);
             printf("Travel Received: %s\n", (char*)message);
 
             if (!strcmp((char*)message,"NO")) {
@@ -298,7 +298,7 @@ int main(int argc, char *argv[]) {
             }
             free(message);
                
-            read_from_pipe(sizeof(time_t),bufferSize,fd[i][READ],&date2);
+            read_from_pipe(sizeof(time_t),bufferSize,fd[MCountryPtr->monitorNum][READ],&date2);
             printf("Travel Received: %d\n", (int)date2);
 
             if (difftime(date1,date2)<=15552000.0){
@@ -326,6 +326,104 @@ int main(int argc, char *argv[]) {
         }
         else if (!strcmp(token,"/searchVaccinationStatus")) {
 
+            /*Get Command Arguments*/
+
+            if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
+            strcpy(citizenID,token);
+
+            for (i=0 ; i<numMonitors ; i++) {
+
+                message_size = 13;
+                strcpy(tempString,"_VACSTAT_REQ");
+                if ((nwrite=write(fd[i][WRITE], &message_size, sizeof(unsigned int))) == -1) {
+                    perror("Error in Writing"); exit(2);
+                }
+                // printf("%d\n",nwrite);
+
+                if ((nwrite=write(fd[i][WRITE], tempString, message_size)) == -1) {
+                    perror("Error in Writing"); exit(2);
+                }
+                // printf("%d\n",nwrite);
+
+                message_size = strlen(citizenID)+1;
+                if ((nwrite=write(fd[i][WRITE], &message_size, sizeof(unsigned int))) == -1) {
+                    perror("Error in Writing"); exit(2);
+                }
+                // printf("%d\n",nwrite);
+
+                if ((nwrite=write(fd[i][WRITE], citizenID, message_size)) == -1) {
+                    perror("Error in Writing"); exit(2);
+                }
+                // printf("%d\n",nwrite);
+            }
+
+            for (i=0 ; i<numMonitors ; i++) {
+
+                read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
+                message = malloc(message_size);
+                read_from_pipe(message_size,bufferSize,fd[i][READ],message);
+                // printf("Travel Received: %s\n", (char*)message);
+
+                if (strcmp((char*)message,"_VACSTAT_END")) {
+
+                    printf("%s %s ",citizenID,(char*)message);
+
+                    free(message);
+                    read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
+                    message = malloc(message_size);
+                    read_from_pipe(message_size,bufferSize,fd[i][READ],message);
+                    // printf("Travel Received: %s\n", (char*)message);
+
+                    printf("%s ",(char*)message);
+
+                    free(message);
+                    read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
+                    message = malloc(message_size);
+                    read_from_pipe(message_size,bufferSize,fd[i][READ],message);
+                    // printf("Travel Received: %s\n", (char*)message);
+
+                    printf("%s\n",(char*)message);
+
+                    read_from_pipe(sizeof(char),bufferSize,fd[i][READ],message);
+                    // printf("Travel Received: %d\n", *(char*)message);
+
+                    printf("AGE %d\n",*(char*)message);
+
+                    free(message);
+                    read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
+                    message = malloc(message_size);
+                    read_from_pipe(message_size,bufferSize,fd[i][READ],message);
+                    // printf("Travel Received: %s\n", (char*)message);
+
+                    while (strcmp((char*)message,"_VACSTAT_END")) {
+
+                        printf("%s ",(char*)message);
+
+                        read_from_pipe(sizeof(char),bufferSize,fd[i][READ],&boolReq);
+                        // printf("Travel Received: %d\n", boolReq);
+
+                        if (boolReq==0) {
+
+                            read_from_pipe(sizeof(time_t),bufferSize,fd[i][READ],&date2);
+                            // printf("Travel Received: %d\n", (int)date2);
+
+                            strftime(date, 11, "%d-%m-%Y",localtime(&(date2)));
+                            printf("VACCINATED ON %s\n",date);
+                        }
+                        else printf("NOT YET VACCINATED\n");
+
+                        free(message);
+                        read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
+                        message = malloc(message_size);
+                        read_from_pipe(message_size,bufferSize,fd[i][READ],message);
+                        // printf("Travel Received: %s\n", (char*)message);
+
+                    }
+
+                }
+                free(message);
+            }
+
         }
         else printf("Please type a valid command.\n");
 
@@ -337,7 +435,6 @@ int main(int argc, char *argv[]) {
     free(lineInput);
     skipList_destroy(countriesSkipList);
     for (i=0 ; i<numMonitors ; i++) hash_destroy(bloomHashes[i]);
-    sleep(5);
 }
 
 int writeSubdirToPipe(void *data1, void *fd, void *data3, void *data4) {

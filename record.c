@@ -54,6 +54,16 @@ char* record_getCitizenID(Record* record) {
     return record->citizenID;
 }
 
+char* record_getCitizenName(Record* record) {
+
+    return record->firstName;
+}
+
+char* record_getCitizenSurname(Record* record) {
+
+    return record->lastName;
+}
+
 char record_getAge(Record* record) {
 
     return record->age;

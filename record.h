@@ -34,6 +34,8 @@ void record_setCountry(Record* , Country* );
 char* record_getCitizenID(Record* );
 Country* record_getCountry(Record* );
 char record_getAge(Record* );
+char* record_getCitizenName(Record* );
+char* record_getCitizenSurname(Record* );
 char* record_getCitizenID(Record* );
 
 #endif

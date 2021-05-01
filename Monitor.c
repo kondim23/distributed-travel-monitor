@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
     void *message;
 	DIR 	*dir_ptr;
     struct 	dirent *direntp;
-	char *subFileName, countryName[20], tempString[12], boolReq;
+	char *subFileName, countryName[20], tempString[13], boolReq, *tempStr;
 	int nwrite;
 
 
@@ -156,36 +156,106 @@ int main(int argc, char *argv[]) {
 	// printf("Message Received: %d\n", message_size);
 	message = malloc(message_size);
 	read_from_pipe(message_size,buffer_size,fdes[READ],message);
-	printf("Monitor Received: %s\n", (char*)message);
+	printf("Monitor Received 1: %s\n", (char*)message);
 
-	if (!strcmp((char*)message,"_TRAVEL_REQ")) {
+	while(1) {
+		if (!strcmp((char*)message,"_TRAVEL_REQ")) {
 
-		read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
-		// printf("Message Received: %d\n", message_size);
-		read_from_pipe(message_size,buffer_size,fdes[READ],currentRecord.citizenID);
-		printf("Monitor Received: %s\n", currentRecord.citizenID);
+			read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
+			// printf("Message Received: %d\n", message_size);
+			read_from_pipe(message_size,buffer_size,fdes[READ],currentRecord.citizenID);
+			printf("Monitor Received 2: %s\n", currentRecord.citizenID);
 
-		currentVaccData.record = &currentRecord;
-		currentVaccData.dateVaccinated = 0;
+			currentVaccData.record = &currentRecord;
+			currentVaccData.dateVaccinated = 0;
+
+			read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
+			// printf("Message Received: %d\n", message_size);
+			message = malloc(message_size);
+			read_from_pipe(message_size,buffer_size,fdes[READ],message);
+			printf("Monitor Received 3: %s\n", (char*)message);
+
+			virus_initialize(&currentVirus,(char*)message);
+			free(message);
+
+			virusPtr = (Virus*) hash_searchValue(virusHash, currentVirus.name, &currentVirus, 0, &virus_compare);
+			virus_searchRecordInVaccinatedType1(virusPtr, &currentVaccData);
+			
+			read_from_pipe(sizeof(char),buffer_size,fdes[READ],&boolReq);
+			printf("Monitor Received: %d\n", boolReq);
+
+			if (boolReq==0) acceptedReq++;
+			else rejectedReq++;
+		}
+		else if (!strcmp((char*)message,"_VACSTAT_REQ")) {
+
+			read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
+			// printf("Message Received: %d\n", message_size);
+			read_from_pipe(message_size,buffer_size,fdes[READ],currentRecord.citizenID);
+			// printf("Monitor Received 2: %s\n", currentRecord.citizenID);
+
+			currentVaccData.record = &currentRecord;
+			currentVaccData.dateVaccinated = 0;
+
+    		recordPtr = (Record*) hash_searchValue(recordsHash, currentRecord.citizenID, &currentRecord, 0, &record_compareType2);
+
+			if (recordPtr!=NULL) {
+
+				tempStr = record_getCitizenName(recordPtr);
+				message_size=strlen(tempStr)+1;
+				if ((write(fdes[WRITE], &message_size, sizeof(unsigned int))) == -1) {
+					perror("Error in Writing"); exit(2);
+				}
+
+				if ((write(fdes[WRITE], tempStr, message_size)) == -1) {
+					perror("Error in Writing"); exit(2);
+				}
+
+				tempStr = record_getCitizenSurname(recordPtr);
+				message_size=strlen(tempStr)+1;
+				if ((write(fdes[WRITE], &message_size, sizeof(unsigned int))) == -1) {
+					perror("Error in Writing"); exit(2);
+				}
+
+				if ((write(fdes[WRITE], tempStr, message_size)) == -1) {
+					perror("Error in Writing"); exit(2);
+				}
+
+				tempStr = country_getName(record_getCountry(recordPtr));
+				message_size=strlen(tempStr)+1;
+				if ((write(fdes[WRITE], &message_size, sizeof(unsigned int))) == -1) {
+					perror("Error in Writing"); exit(2);
+				}
+
+				if ((write(fdes[WRITE], tempStr, message_size)) == -1) {
+					perror("Error in Writing"); exit(2);
+				}
+
+				boolReq = record_getAge(recordPtr);
+				if ((write(fdes[WRITE], &boolReq, sizeof(char))) == -1) {
+					perror("Error in Writing"); exit(2);
+				}
+
+            	hash_applyToAllNodes(virusHash, &currentVaccData, &virus_searchRecordInVaccinatedType2);
+			}
+
+			message_size=13;
+			strcpy(tempString,"_VACSTAT_END");
+			if ((write(fdes[WRITE], &message_size, sizeof(unsigned int))) == -1) {
+				perror("Error in Writing"); exit(2);
+			}
+
+			if ((write(fdes[WRITE], tempString, message_size)) == -1) {
+				perror("Error in Writing"); exit(2);
+			}
+
+		}
 
 		read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
 		// printf("Message Received: %d\n", message_size);
 		message = malloc(message_size);
 		read_from_pipe(message_size,buffer_size,fdes[READ],message);
-		printf("Monitor Received: %s\n", (char*)message);
-
-		virus_initialize(&currentVirus,(char*)message);
-		/*EDO MALLON*/
-		free(message);
-
-		virusPtr = (Virus*) hash_searchValue(virusHash, currentVirus.name, &currentVirus, 0, &virus_compare);
-		virus_searchRecordInVaccinatedType1(virusPtr, &currentVaccData);
-
-		read_from_pipe(sizeof(char),buffer_size,fdes[READ],&boolReq);
-		printf("Monitor Received: %c\n", boolReq);
-
-		if (boolReq==0) acceptedReq++;
-		else rejectedReq++;
+		// printf("Monitor Received 1: %s\n", (char*)message);
 	}
 
 	free(lineInput);

@@ -29,8 +29,18 @@ void virus_searchRecordInVaccinatedType1(void *dataToCompare, void *currentData)
     char tempString[4];
 
     /*If noone has been vaccinated on this virus*/
-    if (virusPtr->vaccinated_persons == NULL) printf("NOT VACCINATED\n");
+    if (virusPtr->vaccinated_persons == NULL) {
 
+        message_size=3;
+        strcpy(tempString,"NO");
+        if ((write(fdes[WRITE], &message_size, sizeof(unsigned int))) == -1) {
+            perror("Error in Writing"); exit(2);
+        }
+
+        if ((write(fdes[WRITE], tempString, message_size)) == -1) {
+            perror("Error in Writing"); exit(2);
+        }
+    }
     else {
 
         /*If user has been vaccinated on this virus*/
@@ -77,22 +87,52 @@ void virus_searchRecordInVaccinatedType2(void *dataToCompare, void *currentData)
 
     Virus *virusPtr = (Virus*) dataToCompare;
     VaccData *currentVaccData = (VaccData*) currentData;
-    char date[11];
+    char date[11], boolReq;
+    unsigned int message_size;
+    char tempString[4];
 
-    printf("%s ",virusPtr->name);
+    message_size=strlen(virusPtr->name)+1;
+    if ((write(fdes[WRITE], &message_size, sizeof(unsigned int))) == -1) {
+        perror("Error in Writing"); exit(2);
+    }
+
+    if ((write(fdes[WRITE], virusPtr->name, message_size)) == -1) {
+        perror("Error in Writing"); exit(2);
+    }
 
     /*If noone has been vaccinated on this virus*/
-    if (virusPtr->vaccinated_persons == NULL) printf("NO\n");
+    if (virusPtr->vaccinated_persons == NULL) {
+
+        boolReq=1;
+        if ((write(fdes[WRITE], &boolReq, sizeof(char))) == -1) {
+            perror("Error in Writing"); exit(2);
+        }
+    }
 
     else {
 
         /*If user has been vaccinated on this virus*/
         if (!skipList_searchValue(virusPtr->vaccinated_persons, currentVaccData, &vaccData_compare)) {
             
-            strftime(date, 11, "%d-%m-%Y",localtime(&(currentVaccData->dateVaccinated)));
-            printf("YES %s\n",date);
+            // strftime(date, 11, "%d-%m-%Y",localtime(&(currentVaccData->dateVaccinated)));
+
+            boolReq=0;
+            if ((write(fdes[WRITE], &boolReq, sizeof(char))) == -1) {
+                perror("Error in Writing"); exit(2);
+            }
+
+            message_size=sizeof(time_t);
+            if ((write(fdes[WRITE], &(currentVaccData->dateVaccinated), message_size)) == -1) {
+                perror("Error in Writing"); exit(2);
+            }
         }
-        else printf("NO\n");
+        else {
+
+            boolReq=1;
+            if ((write(fdes[WRITE], &boolReq, sizeof(char))) == -1) {
+                perror("Error in Writing"); exit(2);
+            }
+        }
     }
     return;
 }
