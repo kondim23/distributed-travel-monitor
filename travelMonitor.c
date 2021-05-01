@@ -18,8 +18,9 @@
 #include "request.h"
 
 Virus currentVirus, *virusptr;
-genericHashTable requestsHash, statisticsHash;
+genericHashTable requestsHash;
 Request currentRequest, *requestPtr;
+ReqCompare reqCompare;
 struct tm tempTime={0};
 time_t date1, date2, dateTemp;
 char *subdirectory, *inputDir, *lineInput, bufferLine[200], *token, date[11];
@@ -293,26 +294,31 @@ int main(int argc, char *argv[]) {
             /*Get user's arguments*/
 
             if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
-            virus_initialize(&currentVirus,token);
+            // virus_initialize(&currentVirus,token);
+            strcpy(reqCompare.virusName,token);
 
             if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
             sscanf(token, "%2d-%2d-%4d",&tempTime.tm_mday,&tempTime.tm_mon,&tempTime.tm_year);
             tempTime.tm_mon--;
             tempTime.tm_year -= 1900;
             date1 = mktime(&tempTime);
+            reqCompare.date1 = date1;
 
             if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
             sscanf(token, "%2d-%2d-%4d",&tempTime.tm_mday,&tempTime.tm_mon,&tempTime.tm_year);
             tempTime.tm_mon--;
             tempTime.tm_year -= 1900;
             date2 = mktime(&tempTime);
+            reqCompare.date2 = date2;
 
-            if ((token = strtok(NULL," \t\n")) != NULL) strcpy(countryTo,token);
+            if ((token = strtok(NULL," \t\n")) != NULL) strcpy(reqCompare.countryName,token);
+            else strcpy(reqCompare.countryName,"");
 
-            statisticsHash = hash_Initialize();
-            hash_applyToAllNodesV2(requestsHash,currentVirus.name,date1,date2,countryTo,&statistics_checkRequest);
-            // hash_applyToAllNodes(statisticsHash, NULL, &statistics_print)
-
+            reqCompare.statistics.acceptedReq=0;
+            reqCompare.statistics.rejectedReq=0;
+            hash_applyToAllNodes(requestsHash,&reqCompare,&statistics_compute);
+            printf("TOTAL REQUESTS %d\nACCEPTED %d\nREJECTED %d\n",reqCompare.statistics.acceptedReq+reqCompare.statistics.rejectedReq,\
+            reqCompare.statistics.acceptedReq,reqCompare.statistics.rejectedReq);
         }
         else if (!strcmp(token,"/addVaccinationRecords")) {
 
