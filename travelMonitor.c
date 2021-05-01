@@ -15,8 +15,11 @@
 #include "country.h"
 #include "pipe.h"
 #include "travelMonitor.h"
+#include "request.h"
 
 Virus currentVirus, *virusptr;
+genericHashTable requestsHash, statisticsHash;
+Request currentRequest, *requestPtr;
 struct tm tempTime={0};
 time_t date1, date2, dateTemp;
 char *subdirectory, *inputDir, *lineInput, bufferLine[200], *token, date[11];
@@ -64,6 +67,9 @@ int main(int argc, char *argv[]) {
     /*bloomHashes hold numMonitors hashes of blooms (a bloom filter per virus)*/
     genericHashTable bloomHashes[numMonitors];
     for (i=0 ; i<numMonitors ; i++) bloomHashes[i]=NULL;
+
+    /*requestsHash holds the travel request data from user*/
+    requestsHash = hash_Initialize();
 
     /*Creating Named Pipes and Monitor Processes*/
 
@@ -274,9 +280,38 @@ int main(int argc, char *argv[]) {
             }
             write_to_pipe(sizeof(char) , bufferSize , fd[MCountryPtr->monitorNum][WRITE] , &boolReq );
 
-    
+            strcpy(currentRequest.countryName,countryTo);
+            strcpy(currentRequest.virusName,currentVirus.name);
+            currentRequest.dateOfRequest = date1;
+            currentRequest.boolReq = boolReq;
+
+            hash_insertDupAllowed(requestsHash,currentRequest.virusName,&currentRequest,sizeof(Request));
+
         }
         else if (!strcmp(token,"/travelStats")) {
+
+            /*Get user's arguments*/
+
+            if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
+            virus_initialize(&currentVirus,token);
+
+            if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
+            sscanf(token, "%2d-%2d-%4d",&tempTime.tm_mday,&tempTime.tm_mon,&tempTime.tm_year);
+            tempTime.tm_mon--;
+            tempTime.tm_year -= 1900;
+            date1 = mktime(&tempTime);
+
+            if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
+            sscanf(token, "%2d-%2d-%4d",&tempTime.tm_mday,&tempTime.tm_mon,&tempTime.tm_year);
+            tempTime.tm_mon--;
+            tempTime.tm_year -= 1900;
+            date2 = mktime(&tempTime);
+
+            if ((token = strtok(NULL," \t\n")) != NULL) strcpy(countryTo,token);
+
+            statisticsHash = hash_Initialize();
+            hash_applyToAllNodesV2(requestsHash,currentVirus.name,date1,date2,countryTo,&statistics_checkRequest);
+            // hash_applyToAllNodes(statisticsHash, NULL, &statistics_print)
 
         }
         else if (!strcmp(token,"/addVaccinationRecords")) {

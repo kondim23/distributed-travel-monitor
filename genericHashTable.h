@@ -21,4 +21,9 @@ void hash_destroy(genericHashTable);
 /*Apply functionToExecute in all data nodes of hash*/
 void hash_applyToAllNodes(genericHashTable, void *, void (*functionToExecute) (void*, void*));
 
+void* hash_insertDupAllowed(genericHashTable , void* , void* , unsigned int);
+
+void hash_applyToAllNodesV2(genericHashTable , void *, void *, void *, void *,\
+void (*functionToExecute) (void*, void*, void*, void*, void*));
+
 #endif
