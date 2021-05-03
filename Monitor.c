@@ -80,8 +80,8 @@ int main(int argc, char *argv[]) {
 	// printf("old %d\n",bloomSize);
 	read_from_pipe(sizeof(unsigned int),sizeof(unsigned int),fdes[READ],&buffer_size);
 	read_from_pipe(sizeof(unsigned int),buffer_size,fdes[READ],&bloomSize);
-	// printf("new %d\n",buffer_size);
-	// printf("new %d\n",bloomSize);
+	printf("new %d\n",buffer_size);
+	printf("new %d\n",bloomSize);
 
     /*Get Countries Directory from pipe*/
 

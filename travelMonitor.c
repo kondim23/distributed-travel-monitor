@@ -22,27 +22,29 @@
 
 Virus currentVirus, *virusptr;
 genericHashTable requestsHash;
+genericHashTable bloomHashes[100];
 Request currentRequest, *requestPtr;
 ReqCompare reqCompare;
 skipList countriesSkipList;
 struct tm tempTime={0};
 time_t date1, date2, dateTemp;
-char *subdirectory, *inputDir, *lineInput=NULL, bufferLine[200], *token, date[11], running=1;
+char tempString[13], fifoName[2][14], *subdirectory, *inputDir, *lineInput=NULL, bufferLine[200], *token, date[11], running=1;
 size_t fileBufferSize=512;
 struct 	dirent *direntp;
 unsigned int bufferSize, numMonitors, message_size,buffer_size, acceptedReq=0, rejectedReq=0;
 int nwrite;
 int *monitor_pid;
 int fdes[2];
+int fd[100][2];
+unsigned int sizeOfBloom;
+void *message;
 enum{READ,WRITE};
 
 int main(int argc, char *argv[]) {
 
-    unsigned int sizeOfBloom;
-    char fifoName[2][14], tempString[13], citizenID[4], virusName[20], countryFrom[20], countryTo[20], boolReq;
+    char citizenID[4], virusName[20], countryFrom[20], countryTo[20], boolReq;
     int pid, i;
     DIR 	*dir_ptr;
-    void *message;
     MonitoredCountry m_country, *MCountryPtr;
 
     static struct sigaction terminateAction, childFailsAction;
@@ -80,12 +82,12 @@ int main(int argc, char *argv[]) {
     }
 
     /*Storing file descriptors*/
-    int fd[numMonitors][2];
+    // int fd[numMonitors][2];
     // int monitor_pid[numMonitors];
     monitor_pid = (int*) malloc(sizeof(int)*numMonitors);
 
     /*bloomHashes hold numMonitors hashes of blooms (a bloom filter per virus)*/
-    genericHashTable bloomHashes[numMonitors];
+    // genericHashTable bloomHashes[numMonitors];
     for (i=0 ; i<numMonitors ; i++) bloomHashes[i]=NULL;
 
     /*requestsHash holds the travel request data from user*/
@@ -207,9 +209,8 @@ int main(int argc, char *argv[]) {
     /*Getting user's input*/
 
 	lineInput = malloc(sizeof(char)*fileBufferSize);
-
     if (!running) terminateProgram(monitor_pid,bloomHashes);
-    getline(&lineInput, &fileBufferSize, stdin);
+    while (fgets(lineInput, fileBufferSize, stdin)==NULL) {}
     strcpy(bufferLine,lineInput);
     token = strtok(lineInput, " \t\n");
 
@@ -251,7 +252,7 @@ int main(int argc, char *argv[]) {
             if (MCountryPtr==NULL) {
 
                 printf("REQUEST REJECTED – YOU ARE NOT VACCINATED 1\n");
-                getline(&lineInput, &fileBufferSize, stdin);
+                while (fgets(lineInput, fileBufferSize, stdin)==NULL) {}
                 strcpy(bufferLine,lineInput);
                 token = strtok(lineInput, " \t\n");
                 continue;
@@ -261,7 +262,7 @@ int main(int argc, char *argv[]) {
             if (bloomFilter_search(virusptr->bloomFilter,sizeOfBloom,citizenID)){
 
                 printf("REQUEST REJECTED – YOU ARE NOT VACCINATED 2\n");
-                getline(&lineInput, &fileBufferSize, stdin);
+                while (fgets(lineInput, fileBufferSize, stdin)==NULL) {}
                 strcpy(bufferLine,lineInput);
                 token = strtok(lineInput, " \t\n");
                 continue;
@@ -286,7 +287,7 @@ int main(int argc, char *argv[]) {
 
                 printf("REQUEST REJECTED – YOU ARE NOT VACCINATED 3\n");
                 free(message);
-                getline(&lineInput, &fileBufferSize, stdin);
+                while (fgets(lineInput, fileBufferSize, stdin)==NULL) {}
                 strcpy(bufferLine,lineInput);
                 token = strtok(lineInput, " \t\n");
                 continue;
@@ -506,12 +507,13 @@ int main(int argc, char *argv[]) {
         else printf("Please type a valid command.\n");
 
         if (!running) terminateProgram(monitor_pid,bloomHashes);
-        getline(&lineInput, &fileBufferSize, stdin);
+        while (fgets(lineInput, fileBufferSize, stdin)==NULL) {}
         strcpy(bufferLine,lineInput);
         token = strtok(lineInput, " \t\n");
         if (!running) terminateProgram(monitor_pid,bloomHashes);
     }
 
+    changeStatus_running(SIGINT);
     terminateProgram(monitor_pid,bloomHashes);
 }
 
@@ -541,7 +543,7 @@ int writeSubdirToPipe(void *data1, void *fd, void *data3, void *data4) {
 unsigned int wrongFormat_command() {
 
     printf("ERROR\n");
-    getline(&lineInput, &fileBufferSize, stdin);
+    while (fgets(lineInput, fileBufferSize, stdin)==NULL) {}
     strcpy(bufferLine,lineInput);
     token = strtok(lineInput, " \t\n");
     return 1;
@@ -607,18 +609,117 @@ int writeLog(void *vm_country, void* fdPtr, void* data1, void *data2) {
 
 void recreateChild(int signo){
 
-    // int stat_val,i,targetMonitor=-1;
+    if (!running) return;
 
-    // pid_t pid = wait(&stat_val);
+    int stat_val,i,targetMonitor=-1;
 
-    // for (i=0 ; i<numMonitors ; i++) {
+    pid_t pid = wait(&stat_val);
 
-    //     if (monitor_pid[i]==pid) {
-    //         targetMonitor=i;
-    //         break;
-    //     }
-    // }
-    // if (targetMonitor==-1) printf("ERROR %d\n",pid);
+
+    for (i=0 ; i<numMonitors ; i++) {
+
+        if (monitor_pid[i]==pid) {
+            targetMonitor=i;
+            break;
+        }
+    }
+    if (targetMonitor==-1) printf("ERROR oops %d\n",pid);
 
     // printf("ola kala?\n");
+
+    sprintf(fifoName[READ], "mon%d_to_tm",targetMonitor);
+    if ( mkfifo(fifoName[READ], 0666) == -1 ){
+        if ( errno!=EEXIST ) { perror("Cant create named pipe!"); exit(6); };
+    }
+    if ( (fd[targetMonitor][READ]=open(fifoName[READ], O_RDWR)) < 0){
+        perror("Cant open named pipe!"); exit(3);	
+    }
+
+    sprintf(fifoName[WRITE], "tm_to_mon%d",targetMonitor);
+    if ( mkfifo(fifoName[WRITE], 0666) == -1 ){
+        if ( errno!=EEXIST ) { perror("Cant create named pipe!"); exit(6); };
+    }
+    if ( (fd[targetMonitor][WRITE]=open(fifoName[WRITE], O_RDWR)) < 0){
+        perror("Cant open named pipe!"); exit(3);	
+    }
+
+    printf("%s %s\n",fifoName[READ],fifoName[WRITE]);
+
+    pid = fork();
+    switch(pid) {
+
+        case -1:
+            perror("fork failed\n");
+            exit(1);
+
+        case 0:
+            execlp("./Monitor",fifoName[READ],fifoName[WRITE],NULL);
+    }
+
+    monitor_pid[targetMonitor]=pid;
+
+    write_to_pipe(sizeof(unsigned int) , bufferSize , fd[targetMonitor][WRITE] , &bufferSize );
+    write_to_pipe(sizeof(unsigned int) , bufferSize , fd[targetMonitor][WRITE] , &sizeOfBloom );
+
+    skipList_applyToAll(countriesSkipList,fd,&targetMonitor,NULL,&assignCountryToNewChild);
+
+    message_size=15;
+    strcpy(tempString,"_COUNTRIES_END");
+    write_to_pipe(sizeof(unsigned int) , bufferSize , fd[targetMonitor][WRITE] , &message_size );
+    write_to_pipe(message_size , bufferSize , fd[targetMonitor][WRITE] , tempString );
+
+    read_from_pipe(sizeof(message_size),bufferSize,fd[targetMonitor][READ],&message_size);
+    message = malloc(message_size);
+    read_from_pipe(message_size,bufferSize,fd[targetMonitor][READ],message);
+    printf("Travel Received: %s\n", (char*)message);
+
+    while (strcmp(message,"_BLOOM_END")) {
+
+        /*Insert in system*/
+
+        virus_initialize(&currentVirus,(char*)message);
+        free(message);
+
+        if (bloomHashes[targetMonitor]==NULL) bloomHashes[targetMonitor]=hash_Initialize();
+        virusptr = (Virus*) hash_searchValue(bloomHashes[targetMonitor],currentVirus.name,&currentVirus,sizeof(Virus),&virus_compare);
+        virusptr->bloomFilter = bloomFilter_create(sizeOfBloom);
+
+        read_from_pipe(sizeof(message_size),bufferSize,fd[targetMonitor][READ],&message_size);
+        message = malloc(message_size);
+        read_from_pipe(message_size,bufferSize,fd[targetMonitor][READ],virusptr->bloomFilter);
+        printf("Travel Received: %s\n", (char*)virusptr->bloomFilter);
+
+        free(message);
+
+        read_from_pipe(sizeof(message_size),bufferSize,fd[targetMonitor][READ],&message_size);
+        message = malloc(message_size);
+        read_from_pipe(message_size,bufferSize,fd[targetMonitor][READ],message);
+        printf("Travel Received: %s\n", (char*)message);
+    }
+    free(message);
+
+    return;
+}
+
+int assignCountryToNewChild(void *data1, void *fd, void *vmonitor, void *data4) {
+
+    MonitoredCountry *m_country = (MonitoredCountry*) data1;
+    int monitor = *(int*)vmonitor;
+
+
+    if (m_country->monitorNum!=monitor) return 0;
+
+    subdirectory = (char*) malloc(strlen(inputDir)+strlen(m_country->name)+2);
+    strcpy(subdirectory,inputDir);
+    strcat(subdirectory,"/");
+    strcat(subdirectory,m_country->name);
+    printf("%d %s %s %ld\n",monitor,m_country->name, subdirectory, strlen(subdirectory));
+
+    message_size = strlen(subdirectory)+1;
+
+    write_to_pipe(sizeof(unsigned int) , bufferSize , ((int(*)[2])fd)[monitor][WRITE] , &message_size );
+    write_to_pipe(message_size , bufferSize , ((int(*)[2])fd)[monitor][WRITE] , subdirectory );
+
+
+    free(subdirectory);
 }
