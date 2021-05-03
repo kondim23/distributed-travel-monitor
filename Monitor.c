@@ -7,6 +7,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <signal.h>
 #include "genericHashTable.h"
 #include "record.h"
 #include "country.h"
@@ -20,27 +21,35 @@
 
 
 genericHashTable tempStatisticsHash, virusHash, recordsHash, countriesHash;
+skipList countryFolders;
+CountryFolder currentCountryFolder, *cFolder;
 Record currentRecord, *recordPtr;
 Country currentCountry, *countryPtr;
 Virus currentVirus, *virusPtr;
 VaccData currentVaccData;
+DIR 	*dir_ptr;
+struct 	dirent *direntp;
+void *message;
+FILE *citizenRecordsFile;
 struct tm tempTime={0};
 time_t date1, date2;
-char *lineInput, bufferLine[200], *token, date[11];
+char *subFileName, *lineInput, bufferLine[200], *token, date[11], newRecords=0, countryName[20];
 size_t fileBufferSize=512;
-unsigned int buffer_size=10, bloomSize, acceptedReq=0, rejectedReq=0;
+unsigned int buffer_size=10, bloomSize, acceptedReq=0, rejectedReq=0, message_size;
 int fdes[2];
 enum{READ,WRITE};
 
 int main(int argc, char *argv[]) {
 
-	FILE *citizenRecordsFile;
-    unsigned int message_size;
-    void *message;
-	DIR 	*dir_ptr;
-    struct 	dirent *direntp;
-	char *subFileName, countryName[20], tempString[13], boolReq, *tempStr;
+	char *subFileName, tempString[13], boolReq, *tempStr;
 	int nwrite;
+
+	static struct sigaction newRecordsAction;
+
+	newRecordsAction.sa_handler=changeStatus_newRecords;
+    sigfillset(&(newRecordsAction.sa_mask));
+
+	sigaction(SIGUSR1, &newRecordsAction, NULL);
 
 
     /*Check Arguments*/
@@ -52,18 +61,20 @@ int main(int argc, char *argv[]) {
     if ( (fdes[WRITE]=open(argv[0], O_WRONLY| O_NONBLOCK)) < 0)
 		{ perror("fife open error"); exit(1); }
 
+
  	/*Initializing hashes for country, virus and records*/
     virusHash = hash_Initialize();
     recordsHash = hash_Initialize();
     countriesHash = hash_Initialize();
+	countryFolders = skipList_initializeSkipList();
 
 	/*Get buffer size and bloom size from pipe*/
 
-	printf("old %d\n",buffer_size);
+	// printf("old %d\n",buffer_size);
 	// printf("old %d\n",bloomSize);
 	read_from_pipe(sizeof(unsigned int),sizeof(unsigned int),fdes[READ],&buffer_size);
 	read_from_pipe(sizeof(unsigned int),buffer_size,fdes[READ],&bloomSize);
-	printf("new %d\n",buffer_size);
+	// printf("new %d\n",buffer_size);
 	// printf("new %d\n",bloomSize);
 
     /*Get Countries Directory from pipe*/
@@ -78,44 +89,53 @@ int main(int argc, char *argv[]) {
 
 	while (strcmp(message,"_COUNTRIES_END")) {
 
-		if ((dir_ptr = opendir((char*)message)) == NULL)
+		strcpy(currentCountryFolder.name,(char*)message);
+		currentCountryFolder.fileSkipList = skipList_initializeSkipList();
+		skipList_insertValue(countryFolders,&currentCountryFolder,sizeof(CountryFolder),&countryFolders_compare);
+		cFolder=skipList_searchReturnValue(countryFolders, &currentCountryFolder,&countryFolders_compare);
+		if (cFolder==NULL) printf("pou sai %d\n",message_size);
+		updateSystem();
 
-			fprintf(stderr, "cannot open %s \n",(char*)message);
+		// if ((dir_ptr = opendir((char*)message)) == NULL)
 
-		else {
+		// 	fprintf(stderr, "cannot open %s \n",(char*)message);
 
-			getSubDirName((char*)message,countryName);
+		// else {
 
-			while ((direntp = readdir(dir_ptr)) != NULL) {
+		// 	getSubDirName((char*)message,countryName);
 
-				if (!strcmp(direntp->d_name,".") || !strcmp(direntp->d_name,"..")) continue;
+		// 	while ((direntp = readdir(dir_ptr)) != NULL) {
 
-				subFileName = (char*) malloc(strlen((char*)message)+strlen(direntp->d_name)+2);
-				strcpy(subFileName,(char*)message);
-				strcat(subFileName,"/");
-				strcat(subFileName,direntp->d_name);
+		// 		if (!strcmp(direntp->d_name,".") || !strcmp(direntp->d_name,"..")) continue;
 
-				// printf("%s\n",subFileName);
+		// 		skipList_insertValue(cFolder->fileSkipList,direntp->d_name,strlen(direntp->d_name)+1,&mystrcmp);
 
-				citizenRecordsFile = fopen(subFileName,"r");
-				if (!citizenRecordsFile) {
-					printf("Error! Could not open %s\n",direntp->d_name);
-					exit(1);
-				}
-				while(getline(&lineInput, &fileBufferSize, citizenRecordsFile)!=-1) {
+		// 		subFileName = (char*) malloc(strlen((char*)message)+strlen(direntp->d_name)+2);
+		// 		strcpy(subFileName,(char*)message);
+		// 		strcat(subFileName,"/");
+		// 		strcat(subFileName,direntp->d_name);
 
-					/*Storing record for print if error occurs*/
-        			strcpy(bufferLine,lineInput);
+		// 		// printf("%s\n",subFileName);
 
-					/*Collecting arguments and inserting record to system*/
-					if (getRecordArguments(lineInput,countryName,citizenRecordsFile)) continue;
-					if (insertRecordToSystem(1,citizenRecordsFile) == -1) return 1;
-				}
+		// 		citizenRecordsFile = fopen(subFileName,"r");
+		// 		if (!citizenRecordsFile) {
+		// 			printf("Error! Could not open %s\n",direntp->d_name);
+		// 			exit(1);
+		// 		}
+		// 		while(getline(&lineInput, &fileBufferSize, citizenRecordsFile)!=-1) {
 
-				free(subFileName);
-			}
-			closedir(dir_ptr);
-		}
+		// 			/*Storing record for print if error occurs*/
+        // 			strcpy(bufferLine,lineInput);
+
+		// 			/*Collecting arguments and inserting record to system*/
+		// 			if (getRecordArguments(lineInput,countryName,citizenRecordsFile)) continue;
+		// 			if (insertRecordToSystem(1,citizenRecordsFile) == -1) return 1;
+		// 		}
+
+		// 		free(subFileName);
+		// 	}
+		// 	closedir(dir_ptr);
+		// }
 
 		free(message);
 
@@ -134,22 +154,26 @@ int main(int argc, char *argv[]) {
 	}
 	free(message);
 
-	/*Send bloom filters to travel Monitor*/
-	hash_applyToAllNodes(virusHash,NULL,&sendBloomThroughPipe);
+	sendAllBlooms();
 
-	/*Indicate the end of bloom filters*/
-	message_size=11;
-    strcpy(tempString,"_BLOOM_END");
+	// /*Send bloom filters to travel Monitor*/
+	// hash_applyToAllNodes(virusHash,NULL,&sendBloomThroughPipe);
 
-	write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
-	write_to_pipe(message_size , buffer_size , fdes[WRITE] , tempString );
+	// /*Indicate the end of bloom filters*/
+	// message_size=11;
+    // strcpy(tempString,"_BLOOM_END");
+
+	// write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
+	// write_to_pipe(message_size , buffer_size , fdes[WRITE] , tempString );
 
 
 
 
 	/*Receive Command from Travel Monitor*/
-
-	read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
+	do{
+		if (newRecords==1) {updateSystem(); sendAllBlooms();}
+		read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
+	}while(newRecords==1);
 	// printf("Message Received: %d\n", message_size);
 	message = malloc(message_size);
 	read_from_pipe(message_size,buffer_size,fdes[READ],message);
@@ -235,7 +259,10 @@ int main(int argc, char *argv[]) {
 
 		}
 
-		read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
+		do{
+			if (newRecords==1) {updateSystem(); sendAllBlooms();}
+			read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
+		}while(newRecords==1);
 		// printf("Message Received: %d\n", message_size);
 		message = malloc(message_size);
 		read_from_pipe(message_size,buffer_size,fdes[READ],message);
@@ -243,6 +270,12 @@ int main(int argc, char *argv[]) {
 	}
 
 	free(lineInput);
+}
+
+void changeStatus_newRecords(int signo) {
+
+	newRecords=1;
+	return;
 }
 
 void sendBloomThroughPipe(void *data1, void *data2) {
@@ -403,5 +436,78 @@ void getSubDirName(char* path, char* subDirName) {
 	int i=strlen(path)-1;
 	while (i>=0 && path[i]!='/') i--;
 	strcpy(subDirName,path+i+1);
+	return;
+}
+
+int updateSystem() {
+
+
+	if (newRecords) {
+
+		message = malloc(message_size);
+		read_from_pipe(message_size,buffer_size,fdes[READ],message);
+		printf("Monitor Received: %s\n", (char*)message);
+		newRecords=0;
+	}
+
+	if ((dir_ptr = opendir((char*)message)) == NULL)
+
+		fprintf(stderr, "cannot open %s \n",(char*)message);
+
+	else {
+
+		getSubDirName((char*)message,countryName);
+
+		while ((direntp = readdir(dir_ptr)) != NULL) {
+
+			if (!strcmp(direntp->d_name,".") || !strcmp(direntp->d_name,"..")) continue;
+			if (!skipList_searchValue(cFolder->fileSkipList,direntp->d_name,&mystrcmp)) continue;
+			skipList_insertValue(cFolder->fileSkipList,direntp->d_name,strlen(direntp->d_name)+1,&mystrcmp);
+			subFileName = (char*) malloc(strlen((char*)message)+strlen(direntp->d_name)+2);
+			strcpy(subFileName,(char*)message);
+			strcat(subFileName,"/");
+			strcat(subFileName,direntp->d_name);
+
+
+			citizenRecordsFile = fopen(subFileName,"r");
+			if (!citizenRecordsFile) {
+				printf("Error! Could not open %s\n",direntp->d_name);
+				exit(1);
+			}
+			while(getline(&lineInput, &fileBufferSize, citizenRecordsFile)!=-1) {
+
+				/*Storing record for print if error occurs*/
+				strcpy(bufferLine,lineInput);
+
+				/*Collecting arguments and inserting record to system*/
+				if (getRecordArguments(lineInput,countryName,citizenRecordsFile)) continue;
+				if (insertRecordToSystem(1,citizenRecordsFile) == -1) return 1;
+			}
+
+			free(subFileName);
+		}
+		closedir(dir_ptr);
+	}
+
+	return 0;
+}
+
+void sendAllBlooms(){
+
+	unsigned int message_size;
+	char tempString[11];
+
+	message_size=1;
+
+	/*Send bloom filters to travel Monitor*/
+	hash_applyToAllNodes(virusHash,NULL,&sendBloomThroughPipe);
+
+	/*Indicate the end of bloom filters*/
+	message_size=11;
+    strcpy(tempString,"_BLOOM_END");
+
+	write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
+	write_to_pipe(message_size , buffer_size , fdes[WRITE] , tempString );
+
 	return;
 }

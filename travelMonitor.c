@@ -8,6 +8,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <time.h>
+#include <signal.h>
+#include <sys/wait.h>
 #include "genericHashTable.h"
 #include "virus.h"
 #include "bloomFilter.h"
@@ -22,9 +24,10 @@ Virus currentVirus, *virusptr;
 genericHashTable requestsHash;
 Request currentRequest, *requestPtr;
 ReqCompare reqCompare;
+skipList countriesSkipList;
 struct tm tempTime={0};
 time_t date1, date2, dateTemp;
-char *subdirectory, *inputDir, *lineInput, bufferLine[200], *token, date[11];
+char *subdirectory, *inputDir, *lineInput, bufferLine[200], *token, date[11], running=1;
 size_t fileBufferSize=512;
 struct 	dirent *direntp;
 unsigned int bufferSize, numMonitors, message_size,buffer_size, acceptedReq=0, rejectedReq=0;
@@ -39,8 +42,15 @@ int main(int argc, char *argv[]) {
     int pid, i;
     DIR 	*dir_ptr;
     void *message;
-    skipList countriesSkipList;
     MonitoredCountry m_country, *MCountryPtr;
+
+    static struct sigaction terminateAction;
+
+	terminateAction.sa_handler=changeStatus_running;
+    sigfillset(&(terminateAction.sa_mask));
+
+	sigaction(SIGINT, &terminateAction, NULL);
+	sigaction(SIGQUIT, &terminateAction, NULL);
 
 
     /*Checking User's arguments*/
@@ -65,6 +75,7 @@ int main(int argc, char *argv[]) {
 
     /*Storing file descriptors*/
     int fd[numMonitors][2];
+    int monitor_pid[numMonitors];
 
     /*bloomHashes hold numMonitors hashes of blooms (a bloom filter per virus)*/
     genericHashTable bloomHashes[numMonitors];
@@ -93,6 +104,8 @@ int main(int argc, char *argv[]) {
 		    perror("Cant open named pipe!"); exit(3);	
 		}
 
+        printf("%s %s\n",fifoName[READ],fifoName[WRITE]);
+
         pid = fork();
         switch(pid) {
 
@@ -103,6 +116,8 @@ int main(int argc, char *argv[]) {
             case 0:
                 execlp("./Monitor",fifoName[READ],fifoName[WRITE],NULL);
 	    }
+
+        monitor_pid[i]=pid;
 
         write_to_pipe(sizeof(unsigned int) , bufferSize , fd[i][WRITE] , &bufferSize );
         write_to_pipe(sizeof(unsigned int) , bufferSize , fd[i][WRITE] , &sizeOfBloom );
@@ -132,8 +147,7 @@ int main(int argc, char *argv[]) {
         skipList_applyToAll(countriesSkipList,fd,NULL,NULL,&writeSubdirToPipe);
         closedir(dir_ptr);
     }
-    free(inputDir);
-
+    // free(inputDir);
 
 
     /*Send _COUNTRIES_END to Monitors*/
@@ -187,9 +201,12 @@ int main(int argc, char *argv[]) {
 
 	lineInput = malloc(sizeof(char)*fileBufferSize);
 
+    if (!running) terminateProgram(monitor_pid,bloomHashes);
     getline(&lineInput, &fileBufferSize, stdin);
     strcpy(bufferLine,lineInput);
     token = strtok(lineInput, " \t\n");
+
+    if (!running) terminateProgram(monitor_pid,bloomHashes);
 
     while (strcmp("/exit",token)) {
 
@@ -330,6 +347,63 @@ int main(int argc, char *argv[]) {
         }
         else if (!strcmp(token,"/addVaccinationRecords")) {
 
+            if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
+            strcpy(countryFrom,token);
+            capitalize(countryFrom);
+
+            strcpy(m_country.name,countryFrom);
+            MCountryPtr=skipList_searchReturnValue(countriesSkipList,&m_country,&monitoredCountry_compare);
+
+            subdirectory = (char*) malloc(strlen(inputDir)+strlen(MCountryPtr->name)+2);
+            strcpy(subdirectory,inputDir);
+            strcat(subdirectory,"/");
+            strcat(subdirectory,MCountryPtr->name);
+            printf("%s %d %s %ld\n",MCountryPtr->name, MCountryPtr->monitorNum, subdirectory, strlen(subdirectory));
+
+            kill(monitor_pid[MCountryPtr->monitorNum],SIGUSR1);
+            message_size = strlen(subdirectory)+1;
+
+            // sleep(2);
+
+            write_to_pipe(sizeof(unsigned int) , bufferSize , fd[MCountryPtr->monitorNum][WRITE] , &message_size );
+            write_to_pipe(message_size , bufferSize , fd[MCountryPtr->monitorNum][WRITE] , subdirectory );
+
+
+            free(subdirectory);
+
+            hash_destroy(bloomHashes[MCountryPtr->monitorNum]);
+            bloomHashes[MCountryPtr->monitorNum] = NULL;
+
+            read_from_pipe(sizeof(message_size),bufferSize,fd[MCountryPtr->monitorNum][READ],&message_size);
+            message = malloc(message_size);
+            read_from_pipe(message_size,bufferSize,fd[MCountryPtr->monitorNum][READ],message);
+            printf("Travel Received: %s\n", (char*)message);
+
+            while (strcmp(message,"_BLOOM_END")) {
+
+                /*Insert in system*/
+
+                virus_initialize(&currentVirus,(char*)message);
+                free(message);
+
+                if (bloomHashes[MCountryPtr->monitorNum]==NULL) bloomHashes[MCountryPtr->monitorNum]=hash_Initialize();
+                virusptr = (Virus*) hash_searchValue(bloomHashes[MCountryPtr->monitorNum],currentVirus.name,&currentVirus,sizeof(Virus),&virus_compare);
+                virusptr->bloomFilter = bloomFilter_create(sizeOfBloom);
+
+                read_from_pipe(sizeof(message_size),bufferSize,fd[MCountryPtr->monitorNum][READ],&message_size);
+                message = malloc(message_size);
+                read_from_pipe(message_size,bufferSize,fd[MCountryPtr->monitorNum][READ],virusptr->bloomFilter);
+                printf("Travel Received: %s\n", (char*)virusptr->bloomFilter);
+
+                free(message);
+
+                read_from_pipe(sizeof(message_size),bufferSize,fd[MCountryPtr->monitorNum][READ],&message_size);
+                message = malloc(message_size);
+                read_from_pipe(message_size,bufferSize,fd[MCountryPtr->monitorNum][READ],message);
+                printf("Travel Received: %s\n", (char*)message);
+            }
+            free(message);
+
         }
         else if (!strcmp(token,"/searchVaccinationStatus")) {
 
@@ -424,14 +498,14 @@ int main(int argc, char *argv[]) {
         }
         else printf("Please type a valid command.\n");
 
+        if (!running) terminateProgram(monitor_pid,bloomHashes);
         getline(&lineInput, &fileBufferSize, stdin);
         strcpy(bufferLine,lineInput);
         token = strtok(lineInput, " \t\n");
+        if (!running) terminateProgram(monitor_pid,bloomHashes);
     }
 
-    free(lineInput);
-    skipList_destroy(countriesSkipList);
-    for (i=0 ; i<numMonitors ; i++) hash_destroy(bloomHashes[i]);
+    terminateProgram(monitor_pid,bloomHashes);
 }
 
 int writeSubdirToPipe(void *data1, void *fd, void *data3, void *data4) {
@@ -464,4 +538,61 @@ unsigned int wrongFormat_command() {
     strcpy(bufferLine,lineInput);
     token = strtok(lineInput, " \t\n");
     return 1;
+}
+
+void changeStatus_running(int signo) {
+
+    running=0;
+}
+
+void terminateProgram(int monitor_pid[], genericHashTable bloomHashes[]) {
+
+    int stat_val, fd;
+    pid_t pid;
+    char tempstring[16];
+
+    for (int i=0 ; i<numMonitors ; i++) {
+
+        kill(monitor_pid[i],SIGKILL);
+        pid = wait(&stat_val);
+    }
+
+    strcpy(tempstring,"log_file.");
+    sprintf(tempstring+9,"%d",getpid());
+
+    if(( fd=open(tempstring ,O_CREAT |O_RDWR |O_TRUNC,0777))==-1) {
+        perror("creating ");
+        exit(1);
+    }
+
+    skipList_applyToAll(countriesSkipList,&fd,NULL,NULL,&writeLog);
+
+    write(fd,"TOTAL TRAVEL REQUESTS ",sizeof(char)*22);
+    sprintf(tempstring,"%d",acceptedReq+rejectedReq);
+    write(fd,tempstring,strlen(tempstring));
+    write(fd,"\n",sizeof(char));
+
+    write(fd,"ACCEPTED ",sizeof(char)*9);
+    sprintf(tempstring,"%d",acceptedReq);
+    write(fd,tempstring,strlen(tempstring));
+    write(fd,"\n",sizeof(char));
+
+    write(fd,"REJECTED ",sizeof(char)*9);
+    sprintf(tempstring,"%d",rejectedReq);
+    write(fd,tempstring,strlen(tempstring));    
+
+    free(lineInput);
+    free(inputDir);
+    skipList_destroy(countriesSkipList);
+    for (int i=0 ; i<numMonitors ; i++) hash_destroy(bloomHashes[i]);
+}
+
+int writeLog(void *vm_country, void* fdPtr, void* data1, void *data2) {
+
+    int fd = *(int*)fdPtr;
+    MonitoredCountry *m_country = (MonitoredCountry*) vm_country;
+
+    write(fd,m_country->name,strlen(m_country->name));
+    write(fd,"\n",sizeof(char));
+    return 0;
 }

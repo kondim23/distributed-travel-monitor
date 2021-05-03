@@ -8,5 +8,8 @@ int insertRecordToSystem(char , FILE*) ;
 unsigned int wrongFormat_record(FILE*) ;
 void sendBloomThroughPipe(void *, void *);
 void getSubDirName(char* , char* ) ;
+int updateSystem();
+void sendAllBlooms();
+void changeStatus_newRecords(int);
 
 #endif

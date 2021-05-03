@@ -48,4 +48,4 @@ virus.o: virus.c virus.h record.h skipList.h bloomFilter.h vaccinationData.h Mon
 	$(CC) $(FLAGS) virus.c
 
 clean:
-	rm -f $(OBJS) $(OUT) mon* tm_to_mon*
+	rm -f $(OBJS) $(OUT) mon* tm_to_mon* log_file.*

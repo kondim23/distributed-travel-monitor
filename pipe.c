@@ -20,6 +20,8 @@ void read_from_pipe(unsigned int message_size, unsigned int buffer_size, int fd,
 			if ( (bytes_read = read(fd, msgbuf+bytes_read_total, bytes_to_read)) < 0) {
 				perror("problem in reading"); exit(5);
 			}
+			if (!bytes_read) {return;}
+			// printf("ena %d\n",bytes_read);
 			bytes_to_read -= bytes_read;
 			bytes_read_total += bytes_read;
 		} while (bytes_to_read>0);
