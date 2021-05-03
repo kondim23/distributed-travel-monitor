@@ -27,11 +27,12 @@ ReqCompare reqCompare;
 skipList countriesSkipList;
 struct tm tempTime={0};
 time_t date1, date2, dateTemp;
-char *subdirectory, *inputDir, *lineInput, bufferLine[200], *token, date[11], running=1;
+char *subdirectory, *inputDir, *lineInput=NULL, bufferLine[200], *token, date[11], running=1;
 size_t fileBufferSize=512;
 struct 	dirent *direntp;
 unsigned int bufferSize, numMonitors, message_size,buffer_size, acceptedReq=0, rejectedReq=0;
 int nwrite;
+int *monitor_pid;
 int fdes[2];
 enum{READ,WRITE};
 
@@ -44,13 +45,18 @@ int main(int argc, char *argv[]) {
     void *message;
     MonitoredCountry m_country, *MCountryPtr;
 
-    static struct sigaction terminateAction;
+    static struct sigaction terminateAction, childFailsAction;
 
 	terminateAction.sa_handler=changeStatus_running;
     sigfillset(&(terminateAction.sa_mask));
 
 	sigaction(SIGINT, &terminateAction, NULL);
 	sigaction(SIGQUIT, &terminateAction, NULL);
+
+    childFailsAction.sa_handler=recreateChild;
+    sigfillset(&(childFailsAction.sa_mask));
+
+	sigaction(SIGCHLD, &childFailsAction, NULL);
 
 
     /*Checking User's arguments*/
@@ -75,7 +81,8 @@ int main(int argc, char *argv[]) {
 
     /*Storing file descriptors*/
     int fd[numMonitors][2];
-    int monitor_pid[numMonitors];
+    // int monitor_pid[numMonitors];
+    monitor_pid = (int*) malloc(sizeof(int)*numMonitors);
 
     /*bloomHashes hold numMonitors hashes of blooms (a bloom filter per virus)*/
     genericHashTable bloomHashes[numMonitors];
@@ -583,6 +590,7 @@ void terminateProgram(int monitor_pid[], genericHashTable bloomHashes[]) {
 
     free(lineInput);
     free(inputDir);
+    free(monitor_pid);
     skipList_destroy(countriesSkipList);
     for (int i=0 ; i<numMonitors ; i++) hash_destroy(bloomHashes[i]);
 }
@@ -595,4 +603,22 @@ int writeLog(void *vm_country, void* fdPtr, void* data1, void *data2) {
     write(fd,m_country->name,strlen(m_country->name));
     write(fd,"\n",sizeof(char));
     return 0;
+}
+
+void recreateChild(int signo){
+
+    // int stat_val,i,targetMonitor=-1;
+
+    // pid_t pid = wait(&stat_val);
+
+    // for (i=0 ; i<numMonitors ; i++) {
+
+    //     if (monitor_pid[i]==pid) {
+    //         targetMonitor=i;
+    //         break;
+    //     }
+    // }
+    // if (targetMonitor==-1) printf("ERROR %d\n",pid);
+
+    // printf("ola kala?\n");
 }

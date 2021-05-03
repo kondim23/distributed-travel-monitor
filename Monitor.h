@@ -11,5 +11,6 @@ void getSubDirName(char* , char* ) ;
 int updateSystem();
 void sendAllBlooms();
 void changeStatus_newRecords(int);
-
+void writeLog(int );
+int printCountry(void *, void *, void *, void *);
 #endif

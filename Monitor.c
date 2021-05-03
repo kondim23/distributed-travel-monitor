@@ -44,12 +44,18 @@ int main(int argc, char *argv[]) {
 	char *subFileName, tempString[13], boolReq, *tempStr;
 	int nwrite;
 
-	static struct sigaction newRecordsAction;
+	static struct sigaction newRecordsAction, writeLogAction;
 
 	newRecordsAction.sa_handler=changeStatus_newRecords;
     sigfillset(&(newRecordsAction.sa_mask));
 
 	sigaction(SIGUSR1, &newRecordsAction, NULL);
+
+	writeLogAction.sa_handler=writeLog;
+    sigfillset(&(writeLogAction.sa_mask));
+
+	sigaction(SIGINT, &writeLogAction, NULL);
+	sigaction(SIGQUIT, &writeLogAction, NULL);
 
 
     /*Check Arguments*/
@@ -510,4 +516,48 @@ void sendAllBlooms(){
 	write_to_pipe(message_size , buffer_size , fdes[WRITE] , tempString );
 
 	return;
+}
+
+void writeLog(int signo) {
+
+	int fd;
+    char tempstring[16];
+
+    strcpy(tempstring,"log_file.");
+    sprintf(tempstring+9,"%d",getpid());
+
+    if(( fd=open(tempstring ,O_CREAT |O_RDWR |O_TRUNC,0777))==-1) {
+        perror("creating ");
+        exit(1);
+    }
+
+    skipList_applyToAll(countryFolders,&fd,NULL,NULL,&printCountry);
+
+    write(fd,"TOTAL TRAVEL REQUESTS ",sizeof(char)*22);
+    sprintf(tempstring,"%d",acceptedReq+rejectedReq);
+    write(fd,tempstring,strlen(tempstring));
+    write(fd,"\n",sizeof(char));
+
+    write(fd,"ACCEPTED ",sizeof(char)*9);
+    sprintf(tempstring,"%d",acceptedReq);
+    write(fd,tempstring,strlen(tempstring));
+    write(fd,"\n",sizeof(char));
+
+    write(fd,"REJECTED ",sizeof(char)*9);
+    sprintf(tempstring,"%d",rejectedReq);
+    write(fd,tempstring,strlen(tempstring));
+
+	return; 
+}
+
+int printCountry(void *vCFolder, void *fdPtr, void *data1, void *data2) {
+
+	int fd = *(int*)fdPtr;
+    CountryFolder *c_folder = (CountryFolder*) vCFolder;
+	char tempstring[20];
+	getSubDirName(c_folder->name,tempstring);
+
+    write(fd,tempstring,strlen(tempstring));
+    write(fd,"\n",sizeof(char));
+    return 0;
 }

@@ -6,4 +6,5 @@ unsigned int wrongFormat_command();
 void changeStatus_running(int );
 void terminateProgram(int monitor_pid[],genericHashTable bloomHashes[]);
 int writeLog(void *, void* , void* , void *);
+void recreateChild(int );
 #endif
