@@ -35,7 +35,7 @@ unsigned int bufferSize, numMonitors, message_size,buffer_size, acceptedReq=0, r
 int nwrite;
 int pid, *monitor_pid;
 int fdes[2];
-int fd[100][2];
+int fd[300][2];
 unsigned int sizeOfBloom;
 void *message;
 enum{READ,WRITE};
@@ -144,14 +144,14 @@ int main(int argc, char *argv[]) {
 
 	lineInput = malloc(sizeof(char)*fileBufferSize);
     char* k;
-    if (!running) terminateProgram(monitor_pid,bloomHashes);
+    if (!running) terminateProgram();
     while ((k=fgets(lineInput, fileBufferSize, stdin))==NULL || !strcmp(lineInput,"\n"))
-        if (!running) terminateProgram(monitor_pid,bloomHashes);
+        if (!running) terminateProgram();
 
     strcpy(bufferLine,lineInput);
     token = strtok(lineInput, " \t\n");
 
-    if (!running) terminateProgram(monitor_pid,bloomHashes);
+    if (!running) terminateProgram();
 
     while (strcmp("/exit",token)) {
 
@@ -190,7 +190,7 @@ int main(int argc, char *argv[]) {
 
                 printf("REQUEST REJECTED – YOU ARE NOT VACCINATED 1\n");
                 while (fgets(lineInput, fileBufferSize, stdin)==NULL || !strcmp(lineInput,"\n"))
-                    if (!running) terminateProgram(monitor_pid,bloomHashes);
+                    if (!running) terminateProgram();
                 strcpy(bufferLine,lineInput);
                 token = strtok(lineInput, " \t\n");
                 continue;
@@ -201,7 +201,7 @@ int main(int argc, char *argv[]) {
 
                 printf("REQUEST REJECTED – YOU ARE NOT VACCINATED 2\n");
                 while (fgets(lineInput, fileBufferSize, stdin)==NULL || !strcmp(lineInput,"\n"))
-                    if (!running) terminateProgram(monitor_pid,bloomHashes);
+                    if (!running) terminateProgram();
                 strcpy(bufferLine,lineInput);
                 token = strtok(lineInput, " \t\n");
                 continue;
@@ -227,7 +227,7 @@ int main(int argc, char *argv[]) {
                 printf("REQUEST REJECTED – YOU ARE NOT VACCINATED 3\n");
                 free(message);
                 while (fgets(lineInput, fileBufferSize, stdin)==NULL || !strcmp(lineInput,"\n"))
-                    if (!running) terminateProgram(monitor_pid,bloomHashes);
+                    if (!running) terminateProgram();
                 strcpy(bufferLine,lineInput);
                 token = strtok(lineInput, " \t\n");
                 continue;
@@ -446,16 +446,16 @@ int main(int argc, char *argv[]) {
         }
         else printf("Please type a valid command.\n");
 
-        if (!running) terminateProgram(monitor_pid,bloomHashes);
+        if (!running) terminateProgram();
         while (fgets(lineInput, fileBufferSize, stdin)==NULL || !strcmp(lineInput,"\n"))
-            if (!running) terminateProgram(monitor_pid,bloomHashes);
+            if (!running) terminateProgram();
         strcpy(bufferLine,lineInput);
         token = strtok(lineInput, " \t\n");
-        if (!running) terminateProgram(monitor_pid,bloomHashes);
+        if (!running) terminateProgram();
     }
 
     changeStatus_running(SIGINT);
-    terminateProgram(monitor_pid,bloomHashes);
+    terminateProgram();
 }
 
 int writeSubdirToPipe(void *data1, void *fd, void *data3, void *data4) {
@@ -485,7 +485,7 @@ unsigned int wrongFormat_command() {
 
     printf("ERROR\n");
     while (fgets(lineInput, fileBufferSize, stdin)==NULL || !strcmp(lineInput,"\n"))
-        if (!running) terminateProgram(monitor_pid,bloomHashes);
+        if (!running) terminateProgram();
     strcpy(bufferLine,lineInput);
     token = strtok(lineInput, " \t\n");
     return 1;
@@ -496,7 +496,7 @@ void changeStatus_running(int signo) {
     running=0;
 }
 
-void terminateProgram(int monitor_pid[], genericHashTable bloomHashes[]) {
+void terminateProgram() {
 
     int stat_val, fd;
     pid_t pid;
