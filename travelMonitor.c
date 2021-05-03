@@ -22,7 +22,7 @@
 
 Virus currentVirus, *virusptr;
 genericHashTable requestsHash;
-genericHashTable bloomHashes[100];
+genericHashTable *bloomHashes;
 Request currentRequest, *requestPtr;
 ReqCompare reqCompare;
 skipList countriesSkipList;
@@ -88,6 +88,7 @@ int main(int argc, char *argv[]) {
 
     /*bloomHashes hold numMonitors hashes of blooms (a bloom filter per virus)*/
     // genericHashTable bloomHashes[numMonitors];
+    bloomHashes = (genericHashTable*) malloc(sizeof(genericHashTable)*numMonitors);
     for (i=0 ; i<numMonitors ; i++) bloomHashes[i]=NULL;
 
     /*requestsHash holds the travel request data from user*/
@@ -142,8 +143,11 @@ int main(int argc, char *argv[]) {
     /*Getting user's input*/
 
 	lineInput = malloc(sizeof(char)*fileBufferSize);
+    char* k;
     if (!running) terminateProgram(monitor_pid,bloomHashes);
-    while (fgets(lineInput, fileBufferSize, stdin)==NULL) {}
+    while ((k=fgets(lineInput, fileBufferSize, stdin))==NULL || !strcmp(lineInput,"\n"))
+        if (!running) terminateProgram(monitor_pid,bloomHashes);
+
     strcpy(bufferLine,lineInput);
     token = strtok(lineInput, " \t\n");
 
@@ -185,7 +189,8 @@ int main(int argc, char *argv[]) {
             if (MCountryPtr==NULL) {
 
                 printf("REQUEST REJECTED – YOU ARE NOT VACCINATED 1\n");
-                while (fgets(lineInput, fileBufferSize, stdin)==NULL) {}
+                while (fgets(lineInput, fileBufferSize, stdin)==NULL || !strcmp(lineInput,"\n"))
+                    if (!running) terminateProgram(monitor_pid,bloomHashes);
                 strcpy(bufferLine,lineInput);
                 token = strtok(lineInput, " \t\n");
                 continue;
@@ -195,7 +200,8 @@ int main(int argc, char *argv[]) {
             if (bloomFilter_search(virusptr->bloomFilter,sizeOfBloom,citizenID)){
 
                 printf("REQUEST REJECTED – YOU ARE NOT VACCINATED 2\n");
-                while (fgets(lineInput, fileBufferSize, stdin)==NULL) {}
+                while (fgets(lineInput, fileBufferSize, stdin)==NULL || !strcmp(lineInput,"\n"))
+                    if (!running) terminateProgram(monitor_pid,bloomHashes);
                 strcpy(bufferLine,lineInput);
                 token = strtok(lineInput, " \t\n");
                 continue;
@@ -220,7 +226,8 @@ int main(int argc, char *argv[]) {
 
                 printf("REQUEST REJECTED – YOU ARE NOT VACCINATED 3\n");
                 free(message);
-                while (fgets(lineInput, fileBufferSize, stdin)==NULL) {}
+                while (fgets(lineInput, fileBufferSize, stdin)==NULL || !strcmp(lineInput,"\n"))
+                    if (!running) terminateProgram(monitor_pid,bloomHashes);
                 strcpy(bufferLine,lineInput);
                 token = strtok(lineInput, " \t\n");
                 continue;
@@ -440,7 +447,8 @@ int main(int argc, char *argv[]) {
         else printf("Please type a valid command.\n");
 
         if (!running) terminateProgram(monitor_pid,bloomHashes);
-        while (fgets(lineInput, fileBufferSize, stdin)==NULL) {}
+        while (fgets(lineInput, fileBufferSize, stdin)==NULL || !strcmp(lineInput,"\n"))
+            if (!running) terminateProgram(monitor_pid,bloomHashes);
         strcpy(bufferLine,lineInput);
         token = strtok(lineInput, " \t\n");
         if (!running) terminateProgram(monitor_pid,bloomHashes);
@@ -476,7 +484,8 @@ int writeSubdirToPipe(void *data1, void *fd, void *data3, void *data4) {
 unsigned int wrongFormat_command() {
 
     printf("ERROR\n");
-    while (fgets(lineInput, fileBufferSize, stdin)==NULL) {}
+    while (fgets(lineInput, fileBufferSize, stdin)==NULL || !strcmp(lineInput,"\n"))
+        if (!running) terminateProgram(monitor_pid,bloomHashes);
     strcpy(bufferLine,lineInput);
     token = strtok(lineInput, " \t\n");
     return 1;
@@ -528,6 +537,7 @@ void terminateProgram(int monitor_pid[], genericHashTable bloomHashes[]) {
     free(monitor_pid);
     skipList_destroy(countriesSkipList);
     for (int i=0 ; i<numMonitors ; i++) hash_destroy(bloomHashes[i]);
+    exit(0);
 }
 
 int writeLog(void *vm_country, void* fdPtr, void* data1, void *data2) {
