@@ -33,7 +33,7 @@ size_t fileBufferSize=512;
 struct 	dirent *direntp;
 unsigned int bufferSize, numMonitors, message_size,buffer_size, acceptedReq=0, rejectedReq=0;
 int nwrite;
-int *monitor_pid;
+int pid, *monitor_pid;
 int fdes[2];
 int fd[100][2];
 unsigned int sizeOfBloom;
@@ -42,8 +42,8 @@ enum{READ,WRITE};
 
 int main(int argc, char *argv[]) {
 
-    char citizenID[4], virusName[20], countryFrom[20], countryTo[20], boolReq;
-    int pid, i;
+    char citizenID[5], virusName[20], countryFrom[20], countryTo[20], boolReq;
+    int i;
     DIR 	*dir_ptr;
     MonitoredCountry m_country, *MCountryPtr;
 
@@ -95,43 +95,7 @@ int main(int argc, char *argv[]) {
 
     /*Creating Named Pipes and Monitor Processes*/
 
-    for (int i=0 ; i<numMonitors ; i++) {
-
-        sprintf(fifoName[READ], "mon%d_to_tm",i);
-        if ( mkfifo(fifoName[READ], 0666) == -1 ){
-		    if ( errno!=EEXIST ) { perror("Cant create named pipe!"); exit(6); };
-		}
-        if ( (fd[i][READ]=open(fifoName[READ], O_RDWR)) < 0){
-		    perror("Cant open named pipe!"); exit(3);	
-		}
-
-        sprintf(fifoName[WRITE], "tm_to_mon%d",i);
-        if ( mkfifo(fifoName[WRITE], 0666) == -1 ){
-		    if ( errno!=EEXIST ) { perror("Cant create named pipe!"); exit(6); };
-		}
-        if ( (fd[i][WRITE]=open(fifoName[WRITE], O_RDWR)) < 0){
-		    perror("Cant open named pipe!"); exit(3);	
-		}
-
-        printf("%s %s\n",fifoName[READ],fifoName[WRITE]);
-
-        pid = fork();
-        switch(pid) {
-
-            case -1:
-                perror("fork failed\n");
-                exit(1);
-
-            case 0:
-                execlp("./Monitor",fifoName[READ],fifoName[WRITE],NULL);
-	    }
-
-        monitor_pid[i]=pid;
-
-        write_to_pipe(sizeof(unsigned int) , bufferSize , fd[i][WRITE] , &bufferSize );
-        write_to_pipe(sizeof(unsigned int) , bufferSize , fd[i][WRITE] , &sizeOfBloom );
-
-    }
+    for (int i=0 ; i<numMonitors ; i++) create_pipes_and_monitors(i);
 
     /*Sharing countries subfolders to Monitors*/
 
@@ -173,38 +137,7 @@ int main(int argc, char *argv[]) {
 
     /*Get Bloom filters*/
 
-    for (int i=0 ; i<numMonitors ; i++) {
-
-        read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
-		message = malloc(message_size);
-		read_from_pipe(message_size,bufferSize,fd[i][READ],message);
-		printf("Travel Received: %s\n", (char*)message);
-
-	    while (strcmp(message,"_BLOOM_END")) {
-
-            /*Insert in system*/
-
-            virus_initialize(&currentVirus,(char*)message);
-            free(message);
-
-            if (bloomHashes[i]==NULL) bloomHashes[i]=hash_Initialize();
-            virusptr = (Virus*) hash_searchValue(bloomHashes[i],currentVirus.name,&currentVirus,sizeof(Virus),&virus_compare);
-            virusptr->bloomFilter = bloomFilter_create(sizeOfBloom);
-
-            read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
-            message = malloc(message_size);
-            read_from_pipe(message_size,bufferSize,fd[i][READ],virusptr->bloomFilter);
-            printf("Travel Received: %s\n", (char*)virusptr->bloomFilter);
-
-            free(message);
-
-            read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
-            message = malloc(message_size);
-            read_from_pipe(message_size,bufferSize,fd[i][READ],message);
-		    printf("Travel Received: %s\n", (char*)message);
-        }
-        free(message);
-    }
+    for (int i=0 ; i<numMonitors ; i++) receive_bloom_filters(i);
 
     /*Getting user's input*/
 
@@ -625,42 +558,7 @@ void recreateChild(int signo){
     }
     if (targetMonitor==-1) printf("ERROR oops %d\n",pid);
 
-    // printf("ola kala?\n");
-
-    sprintf(fifoName[READ], "mon%d_to_tm",targetMonitor);
-    if ( mkfifo(fifoName[READ], 0666) == -1 ){
-        if ( errno!=EEXIST ) { perror("Cant create named pipe!"); exit(6); };
-    }
-    if ( (fd[targetMonitor][READ]=open(fifoName[READ], O_RDWR)) < 0){
-        perror("Cant open named pipe!"); exit(3);	
-    }
-
-    sprintf(fifoName[WRITE], "tm_to_mon%d",targetMonitor);
-    if ( mkfifo(fifoName[WRITE], 0666) == -1 ){
-        if ( errno!=EEXIST ) { perror("Cant create named pipe!"); exit(6); };
-    }
-    if ( (fd[targetMonitor][WRITE]=open(fifoName[WRITE], O_RDWR)) < 0){
-        perror("Cant open named pipe!"); exit(3);	
-    }
-
-    printf("%s %s\n",fifoName[READ],fifoName[WRITE]);
-
-    pid = fork();
-    switch(pid) {
-
-        case -1:
-            perror("fork failed\n");
-            exit(1);
-
-        case 0:
-            execlp("./Monitor",fifoName[READ],fifoName[WRITE],NULL);
-    }
-
-    monitor_pid[targetMonitor]=pid;
-
-    write_to_pipe(sizeof(unsigned int) , bufferSize , fd[targetMonitor][WRITE] , &bufferSize );
-    write_to_pipe(sizeof(unsigned int) , bufferSize , fd[targetMonitor][WRITE] , &sizeOfBloom );
-
+    create_pipes_and_monitors(targetMonitor);
     skipList_applyToAll(countriesSkipList,fd,&targetMonitor,NULL,&assignCountryToNewChild);
 
     message_size=15;
@@ -668,36 +566,7 @@ void recreateChild(int signo){
     write_to_pipe(sizeof(unsigned int) , bufferSize , fd[targetMonitor][WRITE] , &message_size );
     write_to_pipe(message_size , bufferSize , fd[targetMonitor][WRITE] , tempString );
 
-    read_from_pipe(sizeof(message_size),bufferSize,fd[targetMonitor][READ],&message_size);
-    message = malloc(message_size);
-    read_from_pipe(message_size,bufferSize,fd[targetMonitor][READ],message);
-    printf("Travel Received: %s\n", (char*)message);
-
-    while (strcmp(message,"_BLOOM_END")) {
-
-        /*Insert in system*/
-
-        virus_initialize(&currentVirus,(char*)message);
-        free(message);
-
-        if (bloomHashes[targetMonitor]==NULL) bloomHashes[targetMonitor]=hash_Initialize();
-        virusptr = (Virus*) hash_searchValue(bloomHashes[targetMonitor],currentVirus.name,&currentVirus,sizeof(Virus),&virus_compare);
-        virusptr->bloomFilter = bloomFilter_create(sizeOfBloom);
-
-        read_from_pipe(sizeof(message_size),bufferSize,fd[targetMonitor][READ],&message_size);
-        message = malloc(message_size);
-        read_from_pipe(message_size,bufferSize,fd[targetMonitor][READ],virusptr->bloomFilter);
-        printf("Travel Received: %s\n", (char*)virusptr->bloomFilter);
-
-        free(message);
-
-        read_from_pipe(sizeof(message_size),bufferSize,fd[targetMonitor][READ],&message_size);
-        message = malloc(message_size);
-        read_from_pipe(message_size,bufferSize,fd[targetMonitor][READ],message);
-        printf("Travel Received: %s\n", (char*)message);
-    }
-    free(message);
-
+    receive_bloom_filters(targetMonitor);
     return;
 }
 
@@ -722,4 +591,75 @@ int assignCountryToNewChild(void *data1, void *fd, void *vmonitor, void *data4) 
 
 
     free(subdirectory);
+}
+
+void create_pipes_and_monitors(int mon){
+
+    sprintf(fifoName[READ], "mon%d_to_tm",mon);
+    if ( mkfifo(fifoName[READ], 0666) == -1 ){
+        if ( errno!=EEXIST ) { perror("Cant create named pipe!"); exit(6); };
+    }
+    if ( (fd[mon][READ]=open(fifoName[READ], O_RDWR)) < 0){
+        perror("Cant open named pipe!"); exit(3);	
+    }
+
+    sprintf(fifoName[WRITE], "tm_to_mon%d",mon);
+    if ( mkfifo(fifoName[WRITE], 0666) == -1 ){
+        if ( errno!=EEXIST ) { perror("Cant create named pipe!"); exit(6); };
+    }
+    if ( (fd[mon][WRITE]=open(fifoName[WRITE], O_RDWR)) < 0){
+        perror("Cant open named pipe!"); exit(3);	
+    }
+
+    printf("%s %s\n",fifoName[READ],fifoName[WRITE]);
+
+    pid = fork();
+    switch(pid) {
+
+        case -1:
+            perror("fork failed\n");
+            exit(1);
+
+        case 0:
+            execlp("./Monitor",fifoName[READ],fifoName[WRITE],NULL);
+    }
+
+    monitor_pid[mon]=pid;
+
+    write_to_pipe(sizeof(unsigned int) , bufferSize , fd[mon][WRITE] , &bufferSize );
+    write_to_pipe(sizeof(unsigned int) , bufferSize , fd[mon][WRITE] , &sizeOfBloom );
+    return;
+}
+
+void receive_bloom_filters(int mon) {
+
+    read_from_pipe(sizeof(message_size),bufferSize,fd[mon][READ],&message_size);
+    message = malloc(message_size);
+    read_from_pipe(message_size,bufferSize,fd[mon][READ],message);
+    printf("Travel Received: %s\n", (char*)message);
+
+    while (strcmp(message,"_BLOOM_END")) {
+
+        /*Insert in system*/
+
+        virus_initialize(&currentVirus,(char*)message);
+        free(message);
+
+        if (bloomHashes[mon]==NULL) bloomHashes[mon]=hash_Initialize();
+        virusptr = (Virus*) hash_searchValue(bloomHashes[mon],currentVirus.name,&currentVirus,sizeof(Virus),&virus_compare);
+        virusptr->bloomFilter = bloomFilter_create(sizeOfBloom);
+
+        read_from_pipe(sizeof(message_size),bufferSize,fd[mon][READ],&message_size);
+        message = malloc(message_size);
+        read_from_pipe(message_size,bufferSize,fd[mon][READ],virusptr->bloomFilter);
+        printf("Travel Received: %s\n", (char*)virusptr->bloomFilter);
+
+        free(message);
+
+        read_from_pipe(sizeof(message_size),bufferSize,fd[mon][READ],&message_size);
+        message = malloc(message_size);
+        read_from_pipe(message_size,bufferSize,fd[mon][READ],message);
+        printf("Travel Received: %s\n", (char*)message);
+    }
+    free(message);
 }
