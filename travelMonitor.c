@@ -84,14 +84,11 @@ int main(int argc, char *argv[]) {
     }
 
     /*Storing file descriptors*/
-    // int fd[numMonitors][2];
-    // int monitor_pid[numMonitors];
     monitor_pid = (int*) malloc(sizeof(int)*numMonitors);
     nfds = numMonitors;
     pfds = malloc(nfds*sizeof(struct pollfd));
 
     /*bloomHashes hold numMonitors hashes of blooms (a bloom filter per virus)*/
-    // genericHashTable bloomHashes[numMonitors];
     bloomHashes = (genericHashTable*) malloc(sizeof(genericHashTable)*numMonitors);
     for (i=0 ; i<numMonitors ; i++) bloomHashes[i]=NULL;
 
@@ -118,14 +115,12 @@ int main(int argc, char *argv[]) {
 
             if (!strcmp(direntp->d_name,".") || !strcmp(direntp->d_name,"..")) continue;
             strcpy(m_country.name,direntp->d_name);
-            // capitalize(m_country.name);
             skipList_insertValue(countriesSkipList,&m_country,sizeof(MonitoredCountry),&monitoredCountry_compareNonCap);
         }
 
         skipList_applyToAll(countriesSkipList,fd,NULL,NULL,&writeSubdirToPipe);
         closedir(dir_ptr);
     }
-    // free(inputDir);
 
 
     /*Send _COUNTRIES_END to Monitors*/
@@ -142,7 +137,6 @@ int main(int argc, char *argv[]) {
 
     /*Get Bloom filters*/
 
-    // for (int i=0 ; i<numMonitors ; i++) receive_bloom_filters(i);
 
     readsRemaining = numMonitors;
 
@@ -207,7 +201,7 @@ int main(int argc, char *argv[]) {
             MCountryPtr=skipList_searchReturnValue(countriesSkipList,&m_country,&monitoredCountry_compare);
             if (MCountryPtr==NULL) {
 
-                printf("REQUEST REJECTED – YOU ARE NOT VACCINATED 1\n");
+                printf("REQUEST REJECTED – YOU ARE NOT VACCINATED\n");
                 while (fgets(lineInput, fileBufferSize, stdin)==NULL || !strcmp(lineInput,"\n"))
                     if (!running) terminateProgram();
                 strcpy(bufferLine,lineInput);
@@ -218,7 +212,7 @@ int main(int argc, char *argv[]) {
             virusptr=hash_searchValue(bloomHashes[MCountryPtr->monitorNum],currentVirus.name,&currentVirus,0,virus_compare);
             if (virusptr==NULL || bloomFilter_search(virusptr->bloomFilter,sizeOfBloom,citizenID)){
 
-                printf("REQUEST REJECTED – YOU ARE NOT VACCINATED 2\n");
+                printf("REQUEST REJECTED – YOU ARE NOT VACCINATED\n");
                 while (fgets(lineInput, fileBufferSize, stdin)==NULL || !strcmp(lineInput,"\n"))
                     if (!running) terminateProgram();
                 strcpy(bufferLine,lineInput);
@@ -239,11 +233,10 @@ int main(int argc, char *argv[]) {
             read_from_pipe(sizeof(message_size),bufferSize,fd[MCountryPtr->monitorNum][READ],&message_size);
             message = malloc(message_size);
             read_from_pipe(message_size,bufferSize,fd[MCountryPtr->monitorNum][READ],message);
-            printf("Travel Received: %s\n", (char*)message);
 
             if (!strcmp((char*)message,"NO")) {
 
-                printf("REQUEST REJECTED – YOU ARE NOT VACCINATED 3\n");
+                printf("REQUEST REJECTED – YOU ARE NOT VACCINATED\n");
                 free(message);
                 while (fgets(lineInput, fileBufferSize, stdin)==NULL || !strcmp(lineInput,"\n"))
                     if (!running) terminateProgram();
@@ -254,7 +247,6 @@ int main(int argc, char *argv[]) {
             free(message);
                
             read_from_pipe(sizeof(time_t),bufferSize,fd[MCountryPtr->monitorNum][READ],&date2);
-            printf("Travel Received: %d\n", (int)date2);
 
             if (difftime(date1,date2)<=15552000.0){
 
@@ -282,7 +274,6 @@ int main(int argc, char *argv[]) {
             /*Get user's arguments*/
 
             if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
-            // virus_initialize(&currentVirus,token);
             strcpy(reqCompare.virusName,token);
             capitalize(reqCompare.virusName);
 
@@ -325,7 +316,6 @@ int main(int argc, char *argv[]) {
             strcpy(subdirectory,inputDir);
             strcat(subdirectory,"/");
             strcat(subdirectory,MCountryPtr->name);
-            printf("%s %d %s %ld\n",MCountryPtr->name, MCountryPtr->monitorNum, subdirectory, strlen(subdirectory));
 
             kill(monitor_pid[MCountryPtr->monitorNum],SIGUSR1);
             message_size = strlen(subdirectory)+1;
@@ -344,7 +334,6 @@ int main(int argc, char *argv[]) {
             read_from_pipe(sizeof(message_size),bufferSize,fd[MCountryPtr->monitorNum][READ],&message_size);
             message = malloc(message_size);
             read_from_pipe(message_size,bufferSize,fd[MCountryPtr->monitorNum][READ],message);
-            printf("Travel Received: %s\n", (char*)message);
 
             while (strcmp(message,"_BLOOM_END")) {
 
@@ -360,14 +349,12 @@ int main(int argc, char *argv[]) {
                 read_from_pipe(sizeof(message_size),bufferSize,fd[MCountryPtr->monitorNum][READ],&message_size);
                 message = malloc(message_size);
                 read_from_pipe(message_size,bufferSize,fd[MCountryPtr->monitorNum][READ],virusptr->bloomFilter);
-                printf("Travel Received: %s\n", (char*)virusptr->bloomFilter);
 
                 free(message);
 
                 read_from_pipe(sizeof(message_size),bufferSize,fd[MCountryPtr->monitorNum][READ],&message_size);
                 message = malloc(message_size);
                 read_from_pipe(message_size,bufferSize,fd[MCountryPtr->monitorNum][READ],message);
-                printf("Travel Received: %s\n", (char*)message);
             }
             free(message);
 
@@ -404,12 +391,9 @@ int main(int argc, char *argv[]) {
                 for (i=0 ; i<nfds ; i++) {
                     if (pfds[i].revents & POLLIN) {
 
-                        printf("mon %d\n",i);
-
                         read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
                         message = malloc(message_size);
                         read_from_pipe(message_size,bufferSize,fd[i][READ],message);
-                        // printf("Travel Received: %s\n", (char*)message);
 
                         if (strcmp((char*)message,"_VACSTAT_END")) {
 
@@ -419,7 +403,6 @@ int main(int argc, char *argv[]) {
                             read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
                             message = malloc(message_size);
                             read_from_pipe(message_size,bufferSize,fd[i][READ],message);
-                            // printf("Travel Received: %s\n", (char*)message);
 
                             printf("%s ",(char*)message);
 
@@ -427,12 +410,10 @@ int main(int argc, char *argv[]) {
                             read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
                             message = malloc(message_size);
                             read_from_pipe(message_size,bufferSize,fd[i][READ],message);
-                            // printf("Travel Received: %s\n", (char*)message);
 
                             printf("%s\n",(char*)message);
 
                             read_from_pipe(sizeof(char),bufferSize,fd[i][READ],message);
-                            // printf("Travel Received: %d\n", *(char*)message);
 
                             printf("AGE %d\n",*(char*)message);
 
@@ -440,19 +421,16 @@ int main(int argc, char *argv[]) {
                             read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
                             message = malloc(message_size);
                             read_from_pipe(message_size,bufferSize,fd[i][READ],message);
-                            // printf("Travel Received: %s\n", (char*)message);
 
                             while (strcmp((char*)message,"_VACSTAT_END")) {
 
                                 printf("%s ",(char*)message);
 
                                 read_from_pipe(sizeof(char),bufferSize,fd[i][READ],&boolReq);
-                                // printf("Travel Received: %d\n", boolReq);
 
                                 if (boolReq==0) {
 
                                     read_from_pipe(sizeof(time_t),bufferSize,fd[i][READ],&date2);
-                                    // printf("Travel Received: %d\n", (int)date2);
 
                                     strftime(date, 11, "%d-%m-%Y",localtime(&(date2)));
                                     printf("VACCINATED ON %s\n",date);
@@ -463,7 +441,6 @@ int main(int argc, char *argv[]) {
                                 read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
                                 message = malloc(message_size);
                                 read_from_pipe(message_size,bufferSize,fd[i][READ],message);
-                                // printf("Travel Received: %s\n", (char*)message);
 
                             }
 
@@ -498,7 +475,6 @@ int writeSubdirToPipe(void *data1, void *fd, void *data3, void *data4) {
     strcpy(subdirectory,inputDir);
     strcat(subdirectory,"/");
     strcat(subdirectory,m_country->name);
-    printf("%d %s %s %ld\n",i,m_country->name, subdirectory, strlen(subdirectory));
 
     message_size = strlen(subdirectory)+1;
 
@@ -568,7 +544,12 @@ void terminateProgram() {
     free(pfds);
     skipList_destroy(countriesSkipList);
     for (int i=0 ; i<numMonitors ; i++) 
-        if (bloomHashes[i]!=NULL) hash_destroy(bloomHashes[i]);
+        if (bloomHashes[i]!=NULL) {
+            hash_applyToAllNodes(bloomHashes[i],NULL,&virus_destroy);
+            hash_destroy(bloomHashes[i]);
+        }
+    free(bloomHashes);
+    free(requestsHash);
     exit(0);
 }
 
@@ -624,7 +605,6 @@ int assignCountryToNewChild(void *data1, void *fd, void *vmonitor, void *data4) 
     strcpy(subdirectory,inputDir);
     strcat(subdirectory,"/");
     strcat(subdirectory,m_country->name);
-    printf("%d %s %s %ld\n",monitor,m_country->name, subdirectory, strlen(subdirectory));
 
     message_size = strlen(subdirectory)+1;
 
@@ -656,8 +636,6 @@ void create_pipes_and_monitors(int mon){
         perror("Cant open named pipe!"); exit(3);	
     }
 
-    printf("%s %s\n",fifoName[READ],fifoName[WRITE]);
-
     pid = fork();
     switch(pid) {
 
@@ -678,12 +656,9 @@ void create_pipes_and_monitors(int mon){
 
 void receive_bloom_filters(int mon) {
 
-    printf("mon %d\n",mon);
-
     read_from_pipe(sizeof(message_size),bufferSize,fd[mon][READ],&message_size);
     message = malloc(message_size);
     read_from_pipe(message_size,bufferSize,fd[mon][READ],message);
-    printf("Travel Received: %s\n", (char*)message);
 
     while (strcmp(message,"_BLOOM_END")) {
 
@@ -699,14 +674,12 @@ void receive_bloom_filters(int mon) {
         read_from_pipe(sizeof(message_size),bufferSize,fd[mon][READ],&message_size);
         message = malloc(message_size);
         read_from_pipe(message_size,bufferSize,fd[mon][READ],virusptr->bloomFilter);
-        printf("Travel Received: %s\n", (char*)virusptr->bloomFilter);
 
         free(message);
 
         read_from_pipe(sizeof(message_size),bufferSize,fd[mon][READ],&message_size);
         message = malloc(message_size);
         read_from_pipe(message_size,bufferSize,fd[mon][READ],message);
-        printf("Travel Received: %s\n", (char*)message);
     }
     free(message);
 }

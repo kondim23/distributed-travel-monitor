@@ -6,7 +6,8 @@
 void read_from_pipe(unsigned int message_size, unsigned int buffer_size, int fd, void* message) {
 
 
-	unsigned int bytes_to_read, btr_bac, bytes_read, bytes_read_total;
+	unsigned int bytes_to_read, btr_bac, bytes_read_total;
+	int bytes_read;
 	void* msgbuf = malloc(buffer_size);
 
 
@@ -17,11 +18,7 @@ void read_from_pipe(unsigned int message_size, unsigned int buffer_size, int fd,
 		bytes_read_total = 0;
 
 		do {
-			if ( (bytes_read = read(fd, msgbuf+bytes_read_total, bytes_to_read)) < 0) {
-				perror("problem in reading"); exit(5);
-			}
-			if (!bytes_read) {return;}
-			// printf("ena %d\n",bytes_read);
+			while ( (bytes_read = read(fd, msgbuf+bytes_read_total, bytes_to_read)) < 0) {}
 			bytes_to_read -= bytes_read;
 			bytes_read_total += bytes_read;
 		} while (bytes_to_read>0);
@@ -35,7 +32,8 @@ void read_from_pipe(unsigned int message_size, unsigned int buffer_size, int fd,
 
 void write_to_pipe(unsigned int message_size, unsigned int buffer_size, int fd, void* message) {
 
-	unsigned int bytes_to_write, btw_bac, bytes_written, total_written_bytes;
+	unsigned int bytes_to_write, btw_bac, total_written_bytes;
+	int bytes_written;
 	void* msgbuf = malloc(buffer_size);
 	
 	for (int i=0 ; message_size>0 ; i++) {
@@ -46,9 +44,7 @@ void write_to_pipe(unsigned int message_size, unsigned int buffer_size, int fd, 
 		memcpy(msgbuf,message+i*buffer_size,btw_bac);
 
 		do {
-			if ( (bytes_written = write(fd, msgbuf+total_written_bytes, bytes_to_write)) < 0) {
-				perror("problem in writing"); exit(5);
-			}
+			while ( (bytes_written = write(fd, msgbuf+total_written_bytes, bytes_to_write)) < 0) {}
 			bytes_to_write -= bytes_written;
 			total_written_bytes += bytes_written;
 		} while (bytes_to_write>0);

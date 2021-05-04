@@ -53,12 +53,10 @@ int bloomFilter_search(bloomFilter currentBloomFilter, int size, char* data) {
         index = (*hashFunctions[i])(data)%(size*8);
         
         if (bloomFilter_bitConfirm(currentBloomFilter , size , index )<0) {
-            printf("NOT VACCINATED\n");
             return 1;
         }
     }
 
-    printf("MAYBE\n");
     return 0;
 }
 

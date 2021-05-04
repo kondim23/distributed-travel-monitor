@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
 
 	if ( (fdes[READ]=open(argv[1], O_RDWR)) < 0)
 		{ perror("fife open error"); exit(1); }
-    if ( (fdes[WRITE]=open(argv[0], O_WRONLY| O_NONBLOCK)) < 0)
+    if ( (fdes[WRITE]=open(argv[0], O_WRONLY)) < 0)
 		{ perror("fife open error"); exit(1); }
 
 
@@ -76,22 +76,16 @@ int main(int argc, char *argv[]) {
 
 	/*Get buffer size and bloom size from pipe*/
 
-	// printf("old %d\n",buffer_size);
-	// printf("old %d\n",bloomSize);
 	read_from_pipe(sizeof(unsigned int),sizeof(unsigned int),fdes[READ],&buffer_size);
 	read_from_pipe(sizeof(unsigned int),buffer_size,fdes[READ],&bloomSize);
-	printf("new %d\n",buffer_size);
-	printf("new %d\n",bloomSize);
 
     /*Get Countries Directory from pipe*/
 
 	lineInput = malloc(sizeof(char)*fileBufferSize);
 
 	read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
-	// printf("Message Received: %d\n", message_size);
 	message = malloc(message_size);
 	read_from_pipe(message_size,buffer_size,fdes[READ],message);
-	printf("Monitor Received: %s\n", (char*)message);
 
 	while (strcmp(message,"_COUNTRIES_END")) {
 
@@ -104,10 +98,8 @@ int main(int argc, char *argv[]) {
 		free(message);
 
 		read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
-		// printf("Message Received: %d\n", message_size);
 		message = malloc(message_size);
 		read_from_pipe(message_size,buffer_size,fdes[READ],message);
-		printf("Monitor Received: %s\n", (char*)message);
 	}
 	free(message);
 
@@ -118,27 +110,21 @@ int main(int argc, char *argv[]) {
 		if (newRecords==1) {updateSystem(); sendAllBlooms();}
 		read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
 	}while(newRecords==1);
-	// printf("Message Received: %d\n", message_size);
 	message = malloc(message_size);
 	read_from_pipe(message_size,buffer_size,fdes[READ],message);
-	printf("Monitor Received 1: %s\n", (char*)message);
 
 	while(1) {
 		if (!strcmp((char*)message,"_TRAVEL_REQ")) {
 
 			read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
-			// printf("Message Received: %d\n", message_size);
 			read_from_pipe(message_size,buffer_size,fdes[READ],currentRecord.citizenID);
-			printf("Monitor Received 2: %s\n", currentRecord.citizenID);
 
 			currentVaccData.record = &currentRecord;
 			currentVaccData.dateVaccinated = 0;
 
 			read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
-			// printf("Message Received: %d\n", message_size);
 			message = malloc(message_size);
 			read_from_pipe(message_size,buffer_size,fdes[READ],message);
-			printf("Monitor Received 3: %s\n", (char*)message);
 
 			virus_initialize(&currentVirus,(char*)message);
 			free(message);
@@ -147,7 +133,6 @@ int main(int argc, char *argv[]) {
 			virus_searchRecordInVaccinatedType1(virusPtr, &currentVaccData);
 			
 			read_from_pipe(sizeof(char),buffer_size,fdes[READ],&boolReq);
-			printf("Monitor Received: %d\n", boolReq);
 
 			if (boolReq==0) acceptedReq++;
 			else rejectedReq++;
@@ -155,9 +140,7 @@ int main(int argc, char *argv[]) {
 		else if (!strcmp((char*)message,"_VACSTAT_REQ")) {
 
 			read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
-			// printf("Message Received: %d\n", message_size);
 			read_from_pipe(message_size,buffer_size,fdes[READ],currentRecord.citizenID);
-			// printf("Monitor Received 2: %s\n", currentRecord.citizenID);
 
 			currentVaccData.record = &currentRecord;
 			currentVaccData.dateVaccinated = 0;
@@ -207,10 +190,8 @@ int main(int argc, char *argv[]) {
 			if (newRecords==1) {updateSystem(); sendAllBlooms();}
 			read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
 		}while(newRecords==1);
-		// printf("Message Received: %d\n", message_size);
 		message = malloc(message_size);
 		read_from_pipe(message_size,buffer_size,fdes[READ],message);
-		// printf("Monitor Received 1: %s\n", (char*)message);
 	}
 
 	free(lineInput);
@@ -389,7 +370,6 @@ int updateSystem() {
 
 		message = malloc(message_size);
 		read_from_pipe(message_size,buffer_size,fdes[READ],message);
-		printf("Monitor Received: %s\n", (char*)message);
 		newRecords=0;
 	}
 
