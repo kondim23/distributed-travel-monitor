@@ -10,6 +10,7 @@
 #include <time.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <poll.h>
 #include "genericHashTable.h"
 #include "virus.h"
 #include "bloomFilter.h"
@@ -26,17 +27,18 @@ genericHashTable *bloomHashes;
 Request currentRequest, *requestPtr;
 ReqCompare reqCompare;
 skipList countriesSkipList;
+struct pollfd *pfds;
 struct tm tempTime={0};
 time_t date1, date2, dateTemp;
 char tempString[13], fifoName[2][14], *subdirectory, *inputDir, *lineInput=NULL, bufferLine[200], *token, date[11], running=1;
 size_t fileBufferSize=512;
 struct 	dirent *direntp;
 unsigned int bufferSize, numMonitors, message_size,buffer_size, acceptedReq=0, rejectedReq=0;
-int nwrite;
+int nwrite, nfds;
 int pid, *monitor_pid;
 int fdes[2];
 int fd[300][2];
-unsigned int sizeOfBloom;
+unsigned int sizeOfBloom, readsRemaining;
 void *message;
 enum{READ,WRITE};
 
@@ -85,6 +87,8 @@ int main(int argc, char *argv[]) {
     // int fd[numMonitors][2];
     // int monitor_pid[numMonitors];
     monitor_pid = (int*) malloc(sizeof(int)*numMonitors);
+    nfds = numMonitors;
+    pfds = malloc(nfds*sizeof(struct pollfd));
 
     /*bloomHashes hold numMonitors hashes of blooms (a bloom filter per virus)*/
     // genericHashTable bloomHashes[numMonitors];
@@ -138,7 +142,22 @@ int main(int argc, char *argv[]) {
 
     /*Get Bloom filters*/
 
-    for (int i=0 ; i<numMonitors ; i++) receive_bloom_filters(i);
+    // for (int i=0 ; i<numMonitors ; i++) receive_bloom_filters(i);
+
+    readsRemaining = numMonitors;
+
+    while(readsRemaining!=0) {
+
+        if (poll(pfds,nfds,-1)==-1) exit(1);
+
+        for (i=0 ; i<nfds ; i++) {
+            if (pfds[i].revents & POLLIN) {
+
+                receive_bloom_filters(i);
+                readsRemaining--;
+            }
+        }
+    }
 
     /*Getting user's input*/
 
@@ -376,73 +395,84 @@ int main(int argc, char *argv[]) {
 
             }
 
-            for (i=0 ; i<numMonitors ; i++) {
+            readsRemaining = numMonitors;
 
-                read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
-                message = malloc(message_size);
-                read_from_pipe(message_size,bufferSize,fd[i][READ],message);
-                // printf("Travel Received: %s\n", (char*)message);
+            while(readsRemaining!=0) {
 
-                if (strcmp((char*)message,"_VACSTAT_END")) {
+                if (poll(pfds,nfds,-1)==-1) exit(1);
 
-                    printf("%s %s ",citizenID,(char*)message);
+                for (i=0 ; i<nfds ; i++) {
+                    if (pfds[i].revents & POLLIN) {
 
-                    free(message);
-                    read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
-                    message = malloc(message_size);
-                    read_from_pipe(message_size,bufferSize,fd[i][READ],message);
-                    // printf("Travel Received: %s\n", (char*)message);
+                        printf("mon %d\n",i);
 
-                    printf("%s ",(char*)message);
-
-                    free(message);
-                    read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
-                    message = malloc(message_size);
-                    read_from_pipe(message_size,bufferSize,fd[i][READ],message);
-                    // printf("Travel Received: %s\n", (char*)message);
-
-                    printf("%s\n",(char*)message);
-
-                    read_from_pipe(sizeof(char),bufferSize,fd[i][READ],message);
-                    // printf("Travel Received: %d\n", *(char*)message);
-
-                    printf("AGE %d\n",*(char*)message);
-
-                    free(message);
-                    read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
-                    message = malloc(message_size);
-                    read_from_pipe(message_size,bufferSize,fd[i][READ],message);
-                    // printf("Travel Received: %s\n", (char*)message);
-
-                    while (strcmp((char*)message,"_VACSTAT_END")) {
-
-                        printf("%s ",(char*)message);
-
-                        read_from_pipe(sizeof(char),bufferSize,fd[i][READ],&boolReq);
-                        // printf("Travel Received: %d\n", boolReq);
-
-                        if (boolReq==0) {
-
-                            read_from_pipe(sizeof(time_t),bufferSize,fd[i][READ],&date2);
-                            // printf("Travel Received: %d\n", (int)date2);
-
-                            strftime(date, 11, "%d-%m-%Y",localtime(&(date2)));
-                            printf("VACCINATED ON %s\n",date);
-                        }
-                        else printf("NOT YET VACCINATED\n");
-
-                        free(message);
                         read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
                         message = malloc(message_size);
                         read_from_pipe(message_size,bufferSize,fd[i][READ],message);
                         // printf("Travel Received: %s\n", (char*)message);
 
+                        if (strcmp((char*)message,"_VACSTAT_END")) {
+
+                            printf("%s %s ",citizenID,(char*)message);
+
+                            free(message);
+                            read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
+                            message = malloc(message_size);
+                            read_from_pipe(message_size,bufferSize,fd[i][READ],message);
+                            // printf("Travel Received: %s\n", (char*)message);
+
+                            printf("%s ",(char*)message);
+
+                            free(message);
+                            read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
+                            message = malloc(message_size);
+                            read_from_pipe(message_size,bufferSize,fd[i][READ],message);
+                            // printf("Travel Received: %s\n", (char*)message);
+
+                            printf("%s\n",(char*)message);
+
+                            read_from_pipe(sizeof(char),bufferSize,fd[i][READ],message);
+                            // printf("Travel Received: %d\n", *(char*)message);
+
+                            printf("AGE %d\n",*(char*)message);
+
+                            free(message);
+                            read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
+                            message = malloc(message_size);
+                            read_from_pipe(message_size,bufferSize,fd[i][READ],message);
+                            // printf("Travel Received: %s\n", (char*)message);
+
+                            while (strcmp((char*)message,"_VACSTAT_END")) {
+
+                                printf("%s ",(char*)message);
+
+                                read_from_pipe(sizeof(char),bufferSize,fd[i][READ],&boolReq);
+                                // printf("Travel Received: %d\n", boolReq);
+
+                                if (boolReq==0) {
+
+                                    read_from_pipe(sizeof(time_t),bufferSize,fd[i][READ],&date2);
+                                    // printf("Travel Received: %d\n", (int)date2);
+
+                                    strftime(date, 11, "%d-%m-%Y",localtime(&(date2)));
+                                    printf("VACCINATED ON %s\n",date);
+                                }
+                                else printf("NOT YET VACCINATED\n");
+
+                                free(message);
+                                read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
+                                message = malloc(message_size);
+                                read_from_pipe(message_size,bufferSize,fd[i][READ],message);
+                                // printf("Travel Received: %s\n", (char*)message);
+
+                            }
+
+                        }
+                        free(message);
+                        readsRemaining--;
                     }
-
                 }
-                free(message);
             }
-
         }
         else printf("Please type a valid command.\n");
 
@@ -535,6 +565,7 @@ void terminateProgram() {
     free(lineInput);
     free(inputDir);
     free(monitor_pid);
+    free(pfds);
     skipList_destroy(countriesSkipList);
     for (int i=0 ; i<numMonitors ; i++) hash_destroy(bloomHashes[i]);
     exit(0);
@@ -613,6 +644,9 @@ void create_pipes_and_monitors(int mon){
         perror("Cant open named pipe!"); exit(3);	
     }
 
+    pfds[mon].fd = fd[mon][READ];
+    pfds[mon].events = POLLIN;
+
     sprintf(fifoName[WRITE], "tm_to_mon%d",mon);
     if ( mkfifo(fifoName[WRITE], 0666) == -1 ){
         if ( errno!=EEXIST ) { perror("Cant create named pipe!"); exit(6); };
@@ -642,6 +676,8 @@ void create_pipes_and_monitors(int mon){
 }
 
 void receive_bloom_filters(int mon) {
+
+    printf("mon %d\n",mon);
 
     read_from_pipe(sizeof(message_size),bufferSize,fd[mon][READ],&message_size);
     message = malloc(message_size);
