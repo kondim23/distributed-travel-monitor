@@ -99,7 +99,6 @@ int main(int argc, char *argv[]) {
 		currentCountryFolder.fileSkipList = skipList_initializeSkipList();
 		skipList_insertValue(countryFolders,&currentCountryFolder,sizeof(CountryFolder),&countryFolders_compare);
 		cFolder=skipList_searchReturnValue(countryFolders, &currentCountryFolder,&countryFolders_compare);
-		if (cFolder==NULL) printf("pou sai %d\n",message_size);
 		updateSystem();
 
 		free(message);
@@ -233,8 +232,6 @@ void sendBloomThroughPipe(void *data1, void *data2) {
 	write_to_pipe(message_size , buffer_size , fdes[WRITE] , virusptr->name );
 	write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &bloomSize );
 	write_to_pipe(bloomSize , buffer_size , fdes[WRITE] , virusptr->bloomFilter );
-
-	return;
 }
 
 /*receive record from input*/

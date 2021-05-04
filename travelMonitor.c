@@ -216,7 +216,7 @@ int main(int argc, char *argv[]) {
             }
 
             virusptr=hash_searchValue(bloomHashes[MCountryPtr->monitorNum],currentVirus.name,&currentVirus,0,virus_compare);
-            if (bloomFilter_search(virusptr->bloomFilter,sizeOfBloom,citizenID)){
+            if (virusptr==NULL || bloomFilter_search(virusptr->bloomFilter,sizeOfBloom,citizenID)){
 
                 printf("REQUEST REJECTED – YOU ARE NOT VACCINATED 2\n");
                 while (fgets(lineInput, fileBufferSize, stdin)==NULL || !strcmp(lineInput,"\n"))

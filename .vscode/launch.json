@@ -51,7 +51,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${fileDirname}/${fileBasenameNoExtension}",
-            "args": ["-m","5","-b","100","-s","1000","-i","hey"],
+            "args": ["-m","5","-b","100","-s","100000","-i","hey"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
