@@ -567,7 +567,8 @@ void terminateProgram() {
     free(monitor_pid);
     free(pfds);
     skipList_destroy(countriesSkipList);
-    for (int i=0 ; i<numMonitors ; i++) hash_destroy(bloomHashes[i]);
+    for (int i=0 ; i<numMonitors ; i++) 
+        if (bloomHashes[i]!=NULL) hash_destroy(bloomHashes[i]);
     exit(0);
 }
 

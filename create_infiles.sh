@@ -17,7 +17,7 @@ fi
 
 mkdir $2
 
-for i in $(cut -d " " -f 4 $1 | uniq)
+for i in $(cut -d " " -f 4 $1 | sort | uniq)
 do
     mkdir $2/$i
     for ((j=1 ; j<=$3 ; j++))
@@ -41,7 +41,7 @@ do
     echo -n $file > $2/$country/fileNum
 done < $1
 
-for i in $(cut -d " " -f 4 $1 | uniq)
+for i in $(cut -d " " -f 4 $1 | sort | uniq)
 do
     rm $2/$i/fileNum
 done
