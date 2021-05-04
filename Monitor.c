@@ -317,6 +317,7 @@ int getRecordArguments(char* lineInput, char *countryName, FILE *input){
     if (argumentsCheck_letters(currentRecord.lastName)) return wrongFormat_record(input);
     capitalize(currentRecord.lastName);
 
+    if ((token = strtok(NULL," \t\n")) == NULL) return wrongFormat_record(input);
     strcpy(currentCountry.name,countryName);
     if (argumentsCheck_letters(currentCountry.name)) return wrongFormat_record(input);
     capitalize(currentCountry.name);
