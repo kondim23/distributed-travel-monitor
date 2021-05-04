@@ -30,4 +30,6 @@ int mystrcmp(void *, void* );
 
 int monitoredCountry_compare(void *str1, void *str2);
 
+int monitoredCountry_compareNonCap(void *, void *);
+
 #endif

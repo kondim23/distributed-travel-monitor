@@ -119,7 +119,7 @@ int main(int argc, char *argv[]) {
             if (!strcmp(direntp->d_name,".") || !strcmp(direntp->d_name,"..")) continue;
             strcpy(m_country.name,direntp->d_name);
             // capitalize(m_country.name);
-            skipList_insertValue(countriesSkipList,&m_country,sizeof(MonitoredCountry),&monitoredCountry_compare);
+            skipList_insertValue(countriesSkipList,&m_country,sizeof(MonitoredCountry),&monitoredCountry_compareNonCap);
         }
 
         skipList_applyToAll(countriesSkipList,fd,NULL,NULL,&writeSubdirToPipe);

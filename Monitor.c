@@ -102,55 +102,7 @@ int main(int argc, char *argv[]) {
 		if (cFolder==NULL) printf("pou sai %d\n",message_size);
 		updateSystem();
 
-		// if ((dir_ptr = opendir((char*)message)) == NULL)
-
-		// 	fprintf(stderr, "cannot open %s \n",(char*)message);
-
-		// else {
-
-		// 	getSubDirName((char*)message,countryName);
-
-		// 	while ((direntp = readdir(dir_ptr)) != NULL) {
-
-		// 		if (!strcmp(direntp->d_name,".") || !strcmp(direntp->d_name,"..")) continue;
-
-		// 		skipList_insertValue(cFolder->fileSkipList,direntp->d_name,strlen(direntp->d_name)+1,&mystrcmp);
-
-		// 		subFileName = (char*) malloc(strlen((char*)message)+strlen(direntp->d_name)+2);
-		// 		strcpy(subFileName,(char*)message);
-		// 		strcat(subFileName,"/");
-		// 		strcat(subFileName,direntp->d_name);
-
-		// 		// printf("%s\n",subFileName);
-
-		// 		citizenRecordsFile = fopen(subFileName,"r");
-		// 		if (!citizenRecordsFile) {
-		// 			printf("Error! Could not open %s\n",direntp->d_name);
-		// 			exit(1);
-		// 		}
-		// 		while(getline(&lineInput, &fileBufferSize, citizenRecordsFile)!=-1) {
-
-		// 			/*Storing record for print if error occurs*/
-        // 			strcpy(bufferLine,lineInput);
-
-		// 			/*Collecting arguments and inserting record to system*/
-		// 			if (getRecordArguments(lineInput,countryName,citizenRecordsFile)) continue;
-		// 			if (insertRecordToSystem(1,citizenRecordsFile) == -1) return 1;
-		// 		}
-
-		// 		free(subFileName);
-		// 	}
-		// 	closedir(dir_ptr);
-		// }
-
 		free(message);
-
-		// virus_initialize(&currentVirus,"covid-19");
-    	// virusPtr = (Virus*) hash_searchValue(virusHash, currentVirus.name, &currentVirus, 0, &virus_compare);
-		// bloomFilter_search(virusPtr->bloomFilter,bloomSize,"1");
-		// bloomFilter_search(virusPtr->bloomFilter,bloomSize,"2");
-		// bloomFilter_search(virusPtr->bloomFilter,bloomSize,"3");
-		// bloomFilter_search(virusPtr->bloomFilter,bloomSize,"15");
 
 		read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
 		// printf("Message Received: %d\n", message_size);
@@ -161,19 +113,6 @@ int main(int argc, char *argv[]) {
 	free(message);
 
 	sendAllBlooms();
-
-	// /*Send bloom filters to travel Monitor*/
-	// hash_applyToAllNodes(virusHash,NULL,&sendBloomThroughPipe);
-
-	// /*Indicate the end of bloom filters*/
-	// message_size=11;
-    // strcpy(tempString,"_BLOOM_END");
-
-	// write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
-	// write_to_pipe(message_size , buffer_size , fdes[WRITE] , tempString );
-
-
-
 
 	/*Receive Command from Travel Monitor*/
 	do{
@@ -205,7 +144,7 @@ int main(int argc, char *argv[]) {
 			virus_initialize(&currentVirus,(char*)message);
 			free(message);
 
-			virusPtr = (Virus*) hash_searchValue(virusHash, currentVirus.name, &currentVirus, 0, &virus_compare);
+			virusPtr = (Virus*) hash_searchValue(virusHash, currentVirus.name, &currentVirus, sizeof(Virus), &virus_compare);
 			virus_searchRecordInVaccinatedType1(virusPtr, &currentVaccData);
 			
 			read_from_pipe(sizeof(char),buffer_size,fdes[READ],&boolReq);

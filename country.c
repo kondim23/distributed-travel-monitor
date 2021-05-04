@@ -34,3 +34,11 @@ int monitoredCountry_compare(void *str1, void *str2) {
 
     return strcmp(countryName,((MonitoredCountry*)str2)->name);
 }
+
+int monitoredCountry_compareNonCap(void *str1, void *str2) {
+
+    char countryName[20];
+    strcpy(countryName,((MonitoredCountry*)str1)->name);
+
+    return strcmp(countryName,((MonitoredCountry*)str2)->name);
+}
