@@ -30,7 +30,7 @@ skipList countriesSkipList;
 struct pollfd *pfds;
 struct tm tempTime={0};
 time_t date1, date2, dateTemp;
-char tempString[13], fifoName[2][14], *subdirectory, *inputDir, *lineInput=NULL, bufferLine[200], *token, date[11], running=1;
+char tempString[20], fifoName[2][14], *subdirectory, *inputDir, *lineInput=NULL, bufferLine[200], *token, date[11], running=1;
 size_t fileBufferSize=512;
 struct 	dirent *direntp;
 unsigned int bufferSize, numMonitors, message_size,buffer_size, acceptedReq=0, rejectedReq=0;
@@ -51,12 +51,14 @@ int main(int argc, char *argv[]) {
 
     static struct sigaction terminateAction, childFailsAction;
 
+    /*Handling SIGINT SIGQUIT*/
 	terminateAction.sa_handler=changeStatus_running;
     sigfillset(&(terminateAction.sa_mask));
 
 	sigaction(SIGINT, &terminateAction, NULL);
 	sigaction(SIGQUIT, &terminateAction, NULL);
 
+    /*Handling SIGCHLD*/
     childFailsAction.sa_handler=recreateChild;
     sigfillset(&(childFailsAction.sa_mask));
 
@@ -80,6 +82,7 @@ int main(int argc, char *argv[]) {
 
             inputDir = (char*) malloc(strlen(argv[i+1])*sizeof(char)+1);
             strcpy(inputDir,argv[i+1]);
+            if (inputDir[strlen(inputDir)-1]=='/') inputDir[strlen(inputDir)-1]='\0';
         }
     }
 
@@ -107,7 +110,7 @@ int main(int argc, char *argv[]) {
 
     else {
 
-        /*Inserting subDirs to countriesSkipList, which results to receiving countries alphabetically*/
+        /*Inserting country subDirs to countriesSkipList, which results to receiving countries alphabetically*/
         countriesSkipList = skipList_initializeSkipList();
         m_country.monitorNum=0;
 
@@ -118,6 +121,7 @@ int main(int argc, char *argv[]) {
             skipList_insertValue(countriesSkipList,&m_country,sizeof(MonitoredCountry),&monitoredCountry_compareNonCap);
         }
 
+        /*writing the countries subdir to every monitor*/
         skipList_applyToAll(countriesSkipList,fd,NULL,NULL,&writeSubdirToPipe);
         closedir(dir_ptr);
     }
@@ -135,7 +139,7 @@ int main(int argc, char *argv[]) {
     }
 
 
-    /*Get Bloom filters*/
+    /*Get Bloom filters. Choosing file descriptor with poll*/
 
 
     readsRemaining = numMonitors;
@@ -157,7 +161,11 @@ int main(int argc, char *argv[]) {
 
 	lineInput = malloc(sizeof(char)*fileBufferSize);
     char* k;
+
+    /*Checking if value of var running chenged by SIGINT signal*/
     if (!running) terminateProgram();
+
+    /*Get command*/
     while ((k=fgets(lineInput, fileBufferSize, stdin))==NULL || !strcmp(lineInput,"\n"))
         if (!running) terminateProgram();
 
@@ -198,6 +206,7 @@ int main(int argc, char *argv[]) {
 
             strcpy(m_country.name,countryFrom);
 
+            /*Searching country in countriesskipList to get the matched monitorNum*/
             MCountryPtr=skipList_searchReturnValue(countriesSkipList,&m_country,&monitoredCountry_compare);
             if (MCountryPtr==NULL) {
 
@@ -209,6 +218,7 @@ int main(int argc, char *argv[]) {
                 continue;
             }
 
+            /*Searching the virus in the virus-hash indicating monitorNum, and then searching its bloomfitler*/
             virusptr=hash_searchValue(bloomHashes[MCountryPtr->monitorNum],currentVirus.name,&currentVirus,0,virus_compare);
             if (virusptr==NULL || bloomFilter_search(virusptr->bloomFilter,sizeOfBloom,citizenID)){
 
@@ -220,6 +230,7 @@ int main(int argc, char *argv[]) {
                 continue;
             }
 
+            /*Sending _TRAVEL_REQ , citizenID and virusName to proper monitor*/
             message_size = 12;
             strcpy(tempString,"_TRAVEL_REQ");
 
@@ -230,6 +241,7 @@ int main(int argc, char *argv[]) {
             write_to_pipe(sizeof(unsigned int) , bufferSize , fd[MCountryPtr->monitorNum][WRITE] , &message_size );
             write_to_pipe(message_size , bufferSize , fd[MCountryPtr->monitorNum][WRITE] , currentVirus.name );
 
+            /*The monitor answers YES followed by date or NO*/
             read_from_pipe(sizeof(message_size),bufferSize,fd[MCountryPtr->monitorNum][READ],&message_size);
             message = malloc(message_size);
             read_from_pipe(message_size,bufferSize,fd[MCountryPtr->monitorNum][READ],message);
@@ -246,6 +258,7 @@ int main(int argc, char *argv[]) {
             }
             free(message);
                
+            /*Reading date*/
             read_from_pipe(sizeof(time_t),bufferSize,fd[MCountryPtr->monitorNum][READ],&date2);
 
             if (difftime(date1,date2)<=15552000.0){
@@ -259,6 +272,8 @@ int main(int argc, char *argv[]) {
                 rejectedReq++;
                 boolReq = 1;
             }
+
+            /*Writing back to pipe the result of the request*/
             write_to_pipe(sizeof(char) , bufferSize , fd[MCountryPtr->monitorNum][WRITE] , &boolReq );
 
             strcpy(currentRequest.countryName,countryTo);
@@ -266,6 +281,7 @@ int main(int argc, char *argv[]) {
             currentRequest.dateOfRequest = date1;
             currentRequest.boolReq = boolReq;
 
+            /*Inserting request in requests hash*/
             hash_insertDupAllowed(requestsHash,currentRequest.virusName,&currentRequest,sizeof(Request));
 
         }
@@ -299,29 +315,35 @@ int main(int argc, char *argv[]) {
 
             reqCompare.statistics.acceptedReq=0;
             reqCompare.statistics.rejectedReq=0;
+
+            /*Calculating statistics by applying statistics_compute to all request hashnodes*/
             hash_applyToAllNodes(requestsHash,&reqCompare,&statistics_compute);
             printf("TOTAL REQUESTS %d\nACCEPTED %d\nREJECTED %d\n",reqCompare.statistics.acceptedReq+reqCompare.statistics.rejectedReq,\
             reqCompare.statistics.acceptedReq,reqCompare.statistics.rejectedReq);
         }
         else if (!strcmp(token,"/addVaccinationRecords")) {
 
+            /*Get user's arguments*/
             if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
             strcpy(countryFrom,token);
             capitalize(countryFrom);
 
             strcpy(m_country.name,countryFrom);
+
+            /*Return pointer to desired country*/
             MCountryPtr=skipList_searchReturnValue(countriesSkipList,&m_country,&monitoredCountry_compare);
 
+            /*Constracting path for monitor*/
             subdirectory = (char*) malloc(strlen(inputDir)+strlen(MCountryPtr->name)+2);
             strcpy(subdirectory,inputDir);
             strcat(subdirectory,"/");
             strcat(subdirectory,MCountryPtr->name);
 
+            /*Send SIGUSR1 signal to monitor*/
             kill(monitor_pid[MCountryPtr->monitorNum],SIGUSR1);
             message_size = strlen(subdirectory)+1;
 
-            // sleep(2);
-
+            /*Writing to monitor the specific country path in case it manages more that 1 country*/
             write_to_pipe(sizeof(unsigned int) , bufferSize , fd[MCountryPtr->monitorNum][WRITE] , &message_size );
             write_to_pipe(message_size , bufferSize , fd[MCountryPtr->monitorNum][WRITE] , subdirectory );
 
@@ -331,6 +353,7 @@ int main(int argc, char *argv[]) {
             hash_destroy(bloomHashes[MCountryPtr->monitorNum]);
             bloomHashes[MCountryPtr->monitorNum] = NULL;
 
+            /*Reading new blooms from monitor*/
             read_from_pipe(sizeof(message_size),bufferSize,fd[MCountryPtr->monitorNum][READ],&message_size);
             message = malloc(message_size);
             read_from_pipe(message_size,bufferSize,fd[MCountryPtr->monitorNum][READ],message);
@@ -342,16 +365,21 @@ int main(int argc, char *argv[]) {
                 virus_initialize(&currentVirus,(char*)message);
                 free(message);
 
+                /*Initializing blooms hash*/
                 if (bloomHashes[MCountryPtr->monitorNum]==NULL) bloomHashes[MCountryPtr->monitorNum]=hash_Initialize();
+
+                /*Inserting virus on blooms hash*/
                 virusptr = (Virus*) hash_searchValue(bloomHashes[MCountryPtr->monitorNum],currentVirus.name,&currentVirus,sizeof(Virus),&virus_compare);
                 virusptr->bloomFilter = bloomFilter_create(sizeOfBloom);
 
+                /*Saving bloomfilter*/
                 read_from_pipe(sizeof(message_size),bufferSize,fd[MCountryPtr->monitorNum][READ],&message_size);
                 message = malloc(message_size);
                 read_from_pipe(message_size,bufferSize,fd[MCountryPtr->monitorNum][READ],virusptr->bloomFilter);
 
                 free(message);
 
+                /*Read next bloom filter*/
                 read_from_pipe(sizeof(message_size),bufferSize,fd[MCountryPtr->monitorNum][READ],&message_size);
                 message = malloc(message_size);
                 read_from_pipe(message_size,bufferSize,fd[MCountryPtr->monitorNum][READ],message);
@@ -366,6 +394,7 @@ int main(int argc, char *argv[]) {
             if ((token = strtok(NULL," \t\n")) == NULL)  {wrongFormat_command(); continue;}
             strcpy(citizenID,token);
 
+            /*Sending to all monitors the _VACSTAT_REQ flag and the citizenID*/
             for (i=0 ; i<numMonitors ; i++) {
 
                 message_size = 13;
@@ -384,6 +413,7 @@ int main(int argc, char *argv[]) {
 
             readsRemaining = numMonitors;
 
+            /*Receiving data from monitors using poll*/
             while(readsRemaining!=0) {
 
                 if (poll(pfds,nfds,-1)==-1) exit(1);
@@ -391,14 +421,17 @@ int main(int argc, char *argv[]) {
                 for (i=0 ; i<nfds ; i++) {
                     if (pfds[i].revents & POLLIN) {
 
+                        /*Reading first message*/
                         read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
                         message = malloc(message_size);
                         read_from_pipe(message_size,bufferSize,fd[i][READ],message);
 
+                        /*If monitor owns the user, we get and print its data*/
                         if (strcmp((char*)message,"_VACSTAT_END")) {
 
                             printf("%s %s ",citizenID,(char*)message);
 
+                            /*Get name*/
                             free(message);
                             read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
                             message = malloc(message_size);
@@ -406,6 +439,7 @@ int main(int argc, char *argv[]) {
 
                             printf("%s ",(char*)message);
 
+                            /*Get surname*/
                             free(message);
                             read_from_pipe(sizeof(message_size),bufferSize,fd[i][READ],&message_size);
                             message = malloc(message_size);
@@ -413,6 +447,7 @@ int main(int argc, char *argv[]) {
 
                             printf("%s\n",(char*)message);
 
+                            /*Get age*/
                             read_from_pipe(sizeof(char),bufferSize,fd[i][READ],message);
 
                             printf("AGE %d\n",*(char*)message);
@@ -422,6 +457,7 @@ int main(int argc, char *argv[]) {
                             message = malloc(message_size);
                             read_from_pipe(message_size,bufferSize,fd[i][READ],message);
 
+                            /*We get data for all the viruses available to monitor*/
                             while (strcmp((char*)message,"_VACSTAT_END")) {
 
                                 printf("%s ",(char*)message);
@@ -453,6 +489,7 @@ int main(int argc, char *argv[]) {
         }
         else printf("Please type a valid command.\n");
 
+        /*Get next command*/
         if (!running) terminateProgram();
         while (fgets(lineInput, fileBufferSize, stdin)==NULL || !strcmp(lineInput,"\n"))
             if (!running) terminateProgram();
@@ -465,12 +502,14 @@ int main(int argc, char *argv[]) {
     terminateProgram();
 }
 
+/*Constructing and writing the given substring to monitor*/
 int writeSubdirToPipe(void *data1, void *fd, void *data3, void *data4) {
 
     static int i=0;
     MonitoredCountry *m_country = (MonitoredCountry*) data1;
     m_country->monitorNum = i;
 
+    /*Constructing directory path*/
     subdirectory = (char*) malloc(strlen(inputDir)+strlen(m_country->name)+2);
     strcpy(subdirectory,inputDir);
     strcat(subdirectory,"/");
@@ -478,6 +517,7 @@ int writeSubdirToPipe(void *data1, void *fd, void *data3, void *data4) {
 
     message_size = strlen(subdirectory)+1;
 
+    /*Writing path to pipe*/
     write_to_pipe(sizeof(unsigned int) , bufferSize , ((int(*)[2])fd)[i][WRITE] , &message_size );
     write_to_pipe(message_size , bufferSize , ((int(*)[2])fd)[i][WRITE] , subdirectory );
 
@@ -497,17 +537,20 @@ unsigned int wrongFormat_command() {
     return 1;
 }
 
+/*Change value of running to 0 if SIGINT/SIGQUIT occurs*/
 void changeStatus_running(int signo) {
 
     running=0;
 }
 
+/*Kill monitors, print logs, free memory and exit*/
 void terminateProgram() {
 
     int stat_val, fd;
     pid_t pid;
     char tempstring[16];
 
+    /*Send SIGKILL to all monitors*/
     for (int i=0 ; i<numMonitors ; i++) {
 
         kill(monitor_pid[i],SIGKILL);
@@ -522,8 +565,10 @@ void terminateProgram() {
         exit(1);
     }
 
+    /*Write all country names*/
     skipList_applyToAll(countriesSkipList,&fd,NULL,NULL,&writeLog);
 
+    /*write the rest of the data*/
     write(fd,"TOTAL TRAVEL REQUESTS ",sizeof(char)*22);
     sprintf(tempstring,"%d",acceptedReq+rejectedReq);
     write(fd,tempstring,strlen(tempstring));
@@ -538,6 +583,7 @@ void terminateProgram() {
     sprintf(tempstring,"%d",rejectedReq);
     write(fd,tempstring,strlen(tempstring));    
 
+    /*free allocated memory*/
     free(lineInput);
     free(inputDir);
     free(monitor_pid);
@@ -553,6 +599,7 @@ void terminateProgram() {
     exit(0);
 }
 
+/*Write to fd the name of the country given*/
 int writeLog(void *vm_country, void* fdPtr, void* data1, void *data2) {
 
     int fd = *(int*)fdPtr;
@@ -563,15 +610,17 @@ int writeLog(void *vm_country, void* fdPtr, void* data1, void *data2) {
     return 0;
 }
 
+/*Recreate a child monitor in case of SIGKILL sent to one monitor*/
 void recreateChild(int signo){
 
+    /*If SIGKILL came from parent process do nothing*/
     if (!running) return;
 
     int stat_val,i,targetMonitor=-1;
 
     pid_t pid = wait(&stat_val);
 
-
+    /*Locate the monitor to be recreated*/
     for (i=0 ; i<numMonitors ; i++) {
 
         if (monitor_pid[i]==pid) {
@@ -581,9 +630,13 @@ void recreateChild(int signo){
     }
     if (targetMonitor==-1) printf("ERROR oops %d\n",pid);
 
+    /*Create pipes for target monitor*/
     create_pipes_and_monitors(targetMonitor);
+
+    /*Assign properly 1 or more countries to new monitor*/
     skipList_applyToAll(countriesSkipList,fd,&targetMonitor,NULL,&assignCountryToNewChild);
 
+    /*Send _COUNTRIES_END*/
     message_size=15;
     strcpy(tempString,"_COUNTRIES_END");
     write_to_pipe(sizeof(unsigned int) , bufferSize , fd[targetMonitor][WRITE] , &message_size );
@@ -593,14 +646,15 @@ void recreateChild(int signo){
     return;
 }
 
+/*Assign given country to gicen monitor if monitorNum matches*/
 int assignCountryToNewChild(void *data1, void *fd, void *vmonitor, void *data4) {
 
     MonitoredCountry *m_country = (MonitoredCountry*) data1;
     int monitor = *(int*)vmonitor;
 
-
     if (m_country->monitorNum!=monitor) return 0;
 
+    /*Construct country directory path*/
     subdirectory = (char*) malloc(strlen(inputDir)+strlen(m_country->name)+2);
     strcpy(subdirectory,inputDir);
     strcat(subdirectory,"/");
@@ -608,6 +662,7 @@ int assignCountryToNewChild(void *data1, void *fd, void *vmonitor, void *data4) 
 
     message_size = strlen(subdirectory)+1;
 
+    /*Send path to pipe*/
     write_to_pipe(sizeof(unsigned int) , bufferSize , ((int(*)[2])fd)[monitor][WRITE] , &message_size );
     write_to_pipe(message_size , bufferSize , ((int(*)[2])fd)[monitor][WRITE] , subdirectory );
 
@@ -615,8 +670,10 @@ int assignCountryToNewChild(void *data1, void *fd, void *vmonitor, void *data4) 
     free(subdirectory);
 }
 
+/*Create 2 pipes and fork 1 monitor*/
 void create_pipes_and_monitors(int mon){
 
+    /*Create 2 pipes for read - wrirte for given monitor*/
     sprintf(fifoName[READ], "mon%d_to_tm",mon);
     if ( mkfifo(fifoName[READ], 0666) == -1 ){
         if ( errno!=EEXIST ) { perror("Cant create named pipe!"); exit(6); };
@@ -625,6 +682,7 @@ void create_pipes_and_monitors(int mon){
         perror("Cant open named pipe!"); exit(3);	
     }
 
+    /*Save reading pipe for poll use*/
     pfds[mon].fd = fd[mon][READ];
     pfds[mon].events = POLLIN;
 
@@ -636,6 +694,7 @@ void create_pipes_and_monitors(int mon){
         perror("Cant open named pipe!"); exit(3);	
     }
 
+    /*Fork the new monitor*/
     pid = fork();
     switch(pid) {
 
@@ -649,17 +708,20 @@ void create_pipes_and_monitors(int mon){
 
     monitor_pid[mon]=pid;
 
+    /*Send buffersize and bloomsize to new monitor*/
     write_to_pipe(sizeof(unsigned int) , bufferSize , fd[mon][WRITE] , &bufferSize );
     write_to_pipe(sizeof(unsigned int) , bufferSize , fd[mon][WRITE] , &sizeOfBloom );
     return;
 }
 
+/*Get bloom filters from monitor mon*/
 void receive_bloom_filters(int mon) {
 
     read_from_pipe(sizeof(message_size),bufferSize,fd[mon][READ],&message_size);
     message = malloc(message_size);
     read_from_pipe(message_size,bufferSize,fd[mon][READ],message);
 
+    /*While there are monitors to read*/
     while (strcmp(message,"_BLOOM_END")) {
 
         /*Insert in system*/
@@ -667,10 +729,14 @@ void receive_bloom_filters(int mon) {
         virus_initialize(&currentVirus,(char*)message);
         free(message);
 
+        /*Initialize proper bloomhash*/
         if (bloomHashes[mon]==NULL) bloomHashes[mon]=hash_Initialize();
+
+        /*Insert virus if it doesnt exist*/
         virusptr = (Virus*) hash_searchValue(bloomHashes[mon],currentVirus.name,&currentVirus,sizeof(Virus),&virus_compare);
         virusptr->bloomFilter = bloomFilter_create(sizeOfBloom);
 
+        /*Read bloom filter*/
         read_from_pipe(sizeof(message_size),bufferSize,fd[mon][READ],&message_size);
         message = malloc(message_size);
         read_from_pipe(message_size,bufferSize,fd[mon][READ],virusptr->bloomFilter);
