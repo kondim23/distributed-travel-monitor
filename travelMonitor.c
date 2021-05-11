@@ -333,7 +333,7 @@ int main(int argc, char *argv[]) {
             /*Return pointer to desired country*/
             MCountryPtr=skipList_searchReturnValue(countriesSkipList,&m_country,&monitoredCountry_compare);
 
-            /*Constracting path for monitor*/
+            /*Constructing path for monitor*/
             subdirectory = (char*) malloc(strlen(inputDir)+strlen(MCountryPtr->name)+2);
             strcpy(subdirectory,inputDir);
             strcat(subdirectory,"/");
@@ -595,7 +595,7 @@ void terminateProgram() {
             hash_destroy(bloomHashes[i]);
         }
     free(bloomHashes);
-    free(requestsHash);
+    hash_destroy(requestsHash);
     exit(0);
 }
 

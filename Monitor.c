@@ -46,11 +46,13 @@ int main(int argc, char *argv[]) {
 
 	static struct sigaction newRecordsAction, writeLogAction;
 
+    /*Handling SIGUSR1*/
 	newRecordsAction.sa_handler=changeStatus_newRecords;
     sigfillset(&(newRecordsAction.sa_mask));
 
 	sigaction(SIGUSR1, &newRecordsAction, NULL);
 
+    /*Handling SIGINT SIGQUIT*/
 	writeLogAction.sa_handler=writeLog;
     sigfillset(&(writeLogAction.sa_mask));
 
@@ -89,6 +91,7 @@ int main(int argc, char *argv[]) {
 
 	while (strcmp(message,"_COUNTRIES_END")) {
 
+		/*Save subdirectory country in skipList*/
 		strcpy(currentCountryFolder.name,(char*)message);
 		currentCountryFolder.fileSkipList = skipList_initializeSkipList();
 		skipList_insertValue(countryFolders,&currentCountryFolder,sizeof(CountryFolder),&countryFolders_compare);
@@ -106,6 +109,7 @@ int main(int argc, char *argv[]) {
 	sendAllBlooms();
 
 	/*Receive Command from Travel Monitor*/
+	/*newRecords is 1 after SIGUSR1 for added vaccination records*/
 	do{
 		if (newRecords==1) {updateSystem(); sendAllBlooms();}
 		read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
@@ -114,8 +118,11 @@ int main(int argc, char *argv[]) {
 	read_from_pipe(message_size,buffer_size,fdes[READ],message);
 
 	while(1) {
+
+		/*travelRequest command*/
 		if (!strcmp((char*)message,"_TRAVEL_REQ")) {
 
+			/*Getting citizenID and virus name*/
 			read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
 			read_from_pipe(message_size,buffer_size,fdes[READ],currentRecord.citizenID);
 
@@ -129,29 +136,36 @@ int main(int argc, char *argv[]) {
 			virus_initialize(&currentVirus,(char*)message);
 			free(message);
 
+			/*Searching virus and writing YES [date] or NO to pipe*/
 			virusPtr = (Virus*) hash_searchValue(virusHash, currentVirus.name, &currentVirus, sizeof(Virus), &virus_compare);
 			virus_searchRecordInVaccinatedType1(virusPtr, &currentVaccData);
 			
 			read_from_pipe(sizeof(char),buffer_size,fdes[READ],&boolReq);
 
+			/*update total requests count from pipe*/
 			if (boolReq==0) acceptedReq++;
 			else rejectedReq++;
 		}
+		/*searchVaccinationStatus command*/
 		else if (!strcmp((char*)message,"_VACSTAT_REQ")) {
 
+			/*Read citizenID*/
 			read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
 			read_from_pipe(message_size,buffer_size,fdes[READ],currentRecord.citizenID);
 
 			currentVaccData.record = &currentRecord;
 			currentVaccData.dateVaccinated = 0;
 
+			/*Search citizen in Records hash*/
     		recordPtr = (Record*) hash_searchValue(recordsHash, currentRecord.citizenID, &currentRecord, 0, &record_compareType2);
 
+			/*If found write its stats to pipe*/
 			if (recordPtr!=NULL) {
 
 				tempStr = record_getCitizenName(recordPtr);
 				message_size=strlen(tempStr)+1;
 
+				/*write name*/
 				write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
 				write_to_pipe(message_size , buffer_size , fdes[WRITE] , tempStr );
 
@@ -159,6 +173,7 @@ int main(int argc, char *argv[]) {
 				tempStr = record_getCitizenSurname(recordPtr);
 				message_size=strlen(tempStr)+1;
 
+				/*write surname*/
 				write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
 				write_to_pipe(message_size , buffer_size , fdes[WRITE] , tempStr );
 
@@ -166,17 +181,20 @@ int main(int argc, char *argv[]) {
 				tempStr = country_getName(record_getCountry(recordPtr));
 				message_size=strlen(tempStr)+1;
 
+				/*write country*/
 				write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
 				write_to_pipe(message_size , buffer_size , fdes[WRITE] , tempStr );
 
 
+				/*write age*/
 				boolReq = record_getAge(recordPtr);
 				write_to_pipe(sizeof(char) , buffer_size , fdes[WRITE] , &boolReq );
 
-
+				/*Search for all viruses citizen's status to write*/
             	hash_applyToAllNodes(virusHash, &currentVaccData, &virus_searchRecordInVaccinatedType2);
 			}
 
+			/*write _VACSTAT_END*/
 			message_size=13;
 			strcpy(tempString,"_VACSTAT_END");
 
@@ -186,6 +204,8 @@ int main(int argc, char *argv[]) {
 
 		}
 
+		/*Receive Command from Travel Monitor*/
+		/*newRecords is 1 after SIGUSR1 for added vaccination records*/
 		do{
 			if (newRecords==1) {updateSystem(); sendAllBlooms();}
 			read_from_pipe(sizeof(message_size),buffer_size,fdes[READ],&message_size);
@@ -197,12 +217,14 @@ int main(int argc, char *argv[]) {
 	free(lineInput);
 }
 
+/*change newRecords to 1 after SIGUSR1*/
 void changeStatus_newRecords(int signo) {
 
 	newRecords=1;
 	return;
 }
 
+ /*write given bloom to pipe*/
 void sendBloomThroughPipe(void *data1, void *data2) {
 
 	Virus *virusptr = (Virus*) data1;
@@ -363,9 +385,10 @@ void getSubDirName(char* path, char* subDirName) {
 	return;
 }
 
+/*Stores Records from current file in System and updates ADTs*/
 int updateSystem() {
 
-
+	/*If we received SIGUSR1 read the subdir country*/
 	if (newRecords) {
 
 		message = malloc(message_size);
@@ -373,6 +396,7 @@ int updateSystem() {
 		newRecords=0;
 	}
 
+	/*Open subdir of country*/
 	if ((dir_ptr = opendir((char*)message)) == NULL)
 
 		fprintf(stderr, "cannot open %s \n",(char*)message);
@@ -381,17 +405,22 @@ int updateSystem() {
 
 		getSubDirName((char*)message,countryName);
 
+		/*Read everyfile in subdir*/
 		while ((direntp = readdir(dir_ptr)) != NULL) {
 
 			if (!strcmp(direntp->d_name,".") || !strcmp(direntp->d_name,"..")) continue;
+
+			/*If this file has been read before continue*/
 			if (!skipList_searchValue(cFolder->fileSkipList,direntp->d_name,&mystrcmp)) continue;
+
+			/*Insert countryfile in skipList and construct file path*/
 			skipList_insertValue(cFolder->fileSkipList,direntp->d_name,strlen(direntp->d_name)+1,&mystrcmp);
 			subFileName = (char*) malloc(strlen((char*)message)+strlen(direntp->d_name)+2);
 			strcpy(subFileName,(char*)message);
 			strcat(subFileName,"/");
 			strcat(subFileName,direntp->d_name);
 
-
+			/*Open file and read all records*/
 			citizenRecordsFile = fopen(subFileName,"r");
 			if (!citizenRecordsFile) {
 				printf("Error! Could not open %s\n",direntp->d_name);
@@ -415,6 +444,7 @@ int updateSystem() {
 	return 0;
 }
 
+/*Send all bloom to monitor*/
 void sendAllBlooms(){
 
 	unsigned int message_size;
@@ -435,6 +465,7 @@ void sendAllBlooms(){
 	return;
 }
 
+/*After SIGINT write log file*/
 void writeLog(int signo) {
 
 	int fd;
@@ -448,6 +479,7 @@ void writeLog(int signo) {
         exit(1);
     }
 
+	/*get all countries*/
     skipList_applyToAll(countryFolders,&fd,NULL,NULL,&printCountry);
 
     write(fd,"TOTAL TRAVEL REQUESTS ",sizeof(char)*22);

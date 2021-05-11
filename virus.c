@@ -51,7 +51,7 @@ void virus_searchRecordInVaccinatedType1(void *dataToCompare, void *currentData)
 	        write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
             write_to_pipe(message_size , buffer_size , fdes[WRITE] , tempString );
 
-
+            /*write date*/
             message_size=sizeof(time_t);
 	        write_to_pipe(message_size , buffer_size , fdes[WRITE] , &(currentVaccData->dateVaccinated) );
 
@@ -71,7 +71,6 @@ void virus_searchRecordInVaccinatedType1(void *dataToCompare, void *currentData)
 }
 
 /*Search given vaccination Data in virus data and print the result*/
-/*Used in vaccineStatus without given virus*/
 void virus_searchRecordInVaccinatedType2(void *dataToCompare, void *currentData) {
 
     Virus *virusPtr = (Virus*) dataToCompare;
@@ -82,6 +81,7 @@ void virus_searchRecordInVaccinatedType2(void *dataToCompare, void *currentData)
 
     message_size=strlen(virusPtr->name)+1;
 
+    /*write virus name*/
 	write_to_pipe(sizeof(unsigned int) , buffer_size , fdes[WRITE] , &message_size );
 	write_to_pipe(message_size , buffer_size , fdes[WRITE] , virusPtr->name );
 
@@ -101,6 +101,7 @@ void virus_searchRecordInVaccinatedType2(void *dataToCompare, void *currentData)
             
             // strftime(date, 11, "%d-%m-%Y",localtime(&(currentVaccData->dateVaccinated)));
 
+            /*write YES date*/
             boolReq=0;
 	        write_to_pipe(sizeof(char) , buffer_size , fdes[WRITE] , &boolReq );
             
@@ -110,6 +111,8 @@ void virus_searchRecordInVaccinatedType2(void *dataToCompare, void *currentData)
         }
         else {
 
+
+            /*write NO*/
             boolReq=1;
 	        write_to_pipe(sizeof(char) , buffer_size , fdes[WRITE] , &boolReq );
 
