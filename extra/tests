@@ -22,10 +22,12 @@
 /addVaccinationRecords greece
 /travelRequest 70 12-12-2020 greece belgium covid-19
 
+/searchVaccinationStatus 70
 /searchVaccinationStatus 3159
 /searchVaccinationStatus 4753
 /searchVaccinationStatus 9646
 /searchVaccinationStatus 1708
 
-create_infiles.sh inputFile hey 4
+./create_infiles.sh inputFile hey 4
+valgrind --leak-check=full --show-leak-kinds=all ./travelMonitor -m 5 -b 1000 -s 100000 -i hey/
 ./travelMonitor -m 5 -b 1000 -s 100000 -i hey/

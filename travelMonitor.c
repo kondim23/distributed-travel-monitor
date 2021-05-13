@@ -202,6 +202,10 @@ int main(int argc, char *argv[]) {
 
             if ((token = strtok(NULL," \t\n")) != NULL)  {wrongFormat_command(); continue;}
 
+            strcpy(currentRequest.countryName,countryTo);
+            strcpy(currentRequest.virusName,currentVirus.name);
+            currentRequest.dateOfRequest = date1;
+
             /*Search in Bloom Filter*/
 
             strcpy(m_country.name,countryFrom);
@@ -211,6 +215,12 @@ int main(int argc, char *argv[]) {
             if (MCountryPtr==NULL) {
 
                 printf("REQUEST REJECTED – YOU ARE NOT VACCINATED\n");
+                rejectedReq++;
+                currentRequest.boolReq = 1;
+
+                /*Inserting request in requests hash*/
+                hash_insertDupAllowed(requestsHash,currentRequest.virusName,&currentRequest,sizeof(Request));
+
                 while (fgets(lineInput, fileBufferSize, stdin)==NULL || !strcmp(lineInput,"\n"))
                     if (!running) terminateProgram();
                 strcpy(bufferLine,lineInput);
@@ -223,6 +233,12 @@ int main(int argc, char *argv[]) {
             if (virusptr==NULL || bloomFilter_search(virusptr->bloomFilter,sizeOfBloom,citizenID)){
 
                 printf("REQUEST REJECTED – YOU ARE NOT VACCINATED\n");
+                rejectedReq++;
+                currentRequest.boolReq = 1;
+
+                /*Inserting request in requests hash*/
+                hash_insertDupAllowed(requestsHash,currentRequest.virusName,&currentRequest,sizeof(Request));
+
                 while (fgets(lineInput, fileBufferSize, stdin)==NULL || !strcmp(lineInput,"\n"))
                     if (!running) terminateProgram();
                 strcpy(bufferLine,lineInput);
@@ -249,6 +265,12 @@ int main(int argc, char *argv[]) {
             if (!strcmp((char*)message,"NO")) {
 
                 printf("REQUEST REJECTED – YOU ARE NOT VACCINATED\n");
+                rejectedReq++;
+                currentRequest.boolReq = 1;
+
+                /*Inserting request in requests hash*/
+                hash_insertDupAllowed(requestsHash,currentRequest.virusName,&currentRequest,sizeof(Request));
+
                 free(message);
                 while (fgets(lineInput, fileBufferSize, stdin)==NULL || !strcmp(lineInput,"\n"))
                     if (!running) terminateProgram();
@@ -265,21 +287,16 @@ int main(int argc, char *argv[]) {
 
                 printf("REQUEST ACCEPTED – HAPPY TRAVELS\n");
                 acceptedReq++;
-                boolReq = 0;
+                currentRequest.boolReq = 0;
             }
             else {
                 printf("REQUEST REJECTED – YOU WILL NEED ANOTHER VACCINATION BEFORE TRAVEL DATE\n");
                 rejectedReq++;
-                boolReq = 1;
+                currentRequest.boolReq = 1;
             }
 
             /*Writing back to pipe the result of the request*/
             write_to_pipe(sizeof(char) , bufferSize , fd[MCountryPtr->monitorNum][WRITE] , &boolReq );
-
-            strcpy(currentRequest.countryName,countryTo);
-            strcpy(currentRequest.virusName,currentVirus.name);
-            currentRequest.dateOfRequest = date1;
-            currentRequest.boolReq = boolReq;
 
             /*Inserting request in requests hash*/
             hash_insertDupAllowed(requestsHash,currentRequest.virusName,&currentRequest,sizeof(Request));
@@ -350,7 +367,10 @@ int main(int argc, char *argv[]) {
 
             free(subdirectory);
 
-            hash_destroy(bloomHashes[MCountryPtr->monitorNum]);
+            if (bloomHashes[MCountryPtr->monitorNum]!=NULL) {
+                hash_applyToAllNodes(bloomHashes[MCountryPtr->monitorNum],NULL,&virus_destroy);
+                hash_destroy(bloomHashes[MCountryPtr->monitorNum]);
+            }
             bloomHashes[MCountryPtr->monitorNum] = NULL;
 
             /*Reading new blooms from monitor*/
@@ -642,6 +662,12 @@ void recreateChild(int signo){
     write_to_pipe(sizeof(unsigned int) , bufferSize , fd[targetMonitor][WRITE] , &message_size );
     write_to_pipe(message_size , bufferSize , fd[targetMonitor][WRITE] , tempString );
 
+    if (bloomHashes[targetMonitor]!=NULL) {
+        hash_applyToAllNodes(bloomHashes[targetMonitor],NULL,&virus_destroy);
+        hash_destroy(bloomHashes[targetMonitor]);
+    }
+    bloomHashes[targetMonitor]=NULL;
+
     receive_bloom_filters(targetMonitor);
     return;
 }
@@ -693,7 +719,7 @@ void create_pipes_and_monitors(int mon){
     if ( (fd[mon][WRITE]=open(fifoName[WRITE], O_RDWR)) < 0){
         perror("Cant open named pipe!"); exit(3);	
     }
-
+    
     /*Fork the new monitor*/
     pid = fork();
     switch(pid) {
@@ -703,6 +729,12 @@ void create_pipes_and_monitors(int mon){
             exit(1);
 
         case 0:
+            /*freeing all memory brefore exec*/
+            free(inputDir);
+            free(monitor_pid);
+            free(pfds);
+            free(bloomHashes);
+            hash_destroy(requestsHash);
             execlp("./Monitor",fifoName[READ],fifoName[WRITE],NULL);
     }
 
