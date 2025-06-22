@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <error.h>
-#include "pipe.h"
+#include "../include/pipe.h"
 #define MSGSIZE 10
 
 char *fifo = "myfifo";

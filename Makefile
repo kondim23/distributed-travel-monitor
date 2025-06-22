@@ -1,51 +1,43 @@
-OBJS	= bloomFilter.o country.o genericHashTable.o record.o skipList.o vaccinationData.o Monitor.o virus.o travelMonitor.o utils.o pipe.o request.o
-OBJS1	= bloomFilter.o country.o genericHashTable.o record.o skipList.o vaccinationData.o Monitor.o virus.o utils.o pipe.o
-OBJS2	= bloomFilter.o country.o genericHashTable.o record.o skipList.o vaccinationData.o travelMonitor.o virus.o utils.o pipe.o request.o
-SOURCE	= bloomFilter.c country.c genericHashTable.c record.c skipList.c vaccinationData.c Monitor.c virus.c utils.c pipe.c request.h
-HEADER	= bloomFilter.h country.h genericHashTable.h record.h skipList.h vaccinationData.h Monitor.h virus.h utils.h pipe.h request.c
-OUT	= Monitor travelMonitor
-CC	= gcc
-FLAGS	= -g -c
+# Improved Makefile for Travels_Virus_Management_SysPro2_2020-2021
 
-all: $(OBJS)
-	$(CC) -g $(OBJS1) -o Monitor
-	$(CC) -g $(OBJS2) -o travelMonitor
+CC = gcc
+CFLAGS = -g
+SRC_DIR = src
+BIN_DIR = bin
+RUN_DIR = runtime
+PIPE_DIR = $(RUN_DIR)/pipes
+LOG_DIR = $(RUN_DIR)/logs
+INCLUDE_DIR = include
 
-bloomFilter.o: bloomFilter.c bloomFilter.h
-	$(CC) $(FLAGS) bloomFilter.c
+SRCS = $(wildcard $(SRC_DIR)/*.c)
+OBJS = $(SRCS:$(SRC_DIR)/%.c=$(BIN_DIR)/%.o)
 
-country.o: country.c country.h utils.h
-	$(CC) $(FLAGS) country.c
+# List main executables
+EXECUTABLES = travelMonitor Monitor
 
-genericHashTable.o: genericHashTable.c genericHashTable.h bloomFilter.h
-	$(CC) $(FLAGS) genericHashTable.c
+all: $(BIN_DIR) $(RUN_DIR) $(addprefix $(BIN_DIR)/,$(EXECUTABLES))
 
-record.o: record.c record.h country.h genericHashTable.h
-	$(CC) $(FLAGS) record.c
+# Map main .c files to their binaries
+$(BIN_DIR)/travelMonitor: $(filter-out $(BIN_DIR)/Monitor.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $@ $(filter-out $(BIN_DIR)/Monitor.o,$(OBJS))
 
-utils.o: utils.c utils.h
-	$(CC) $(FLAGS) utils.c
+$(BIN_DIR)/Monitor: $(filter-out $(BIN_DIR)/travelMonitor.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $@ $(filter-out $(BIN_DIR)/travelMonitor.o,$(OBJS))
 
-pipe.o: pipe.c pipe.h
-	$(CC) $(FLAGS) pipe.c
+# Pattern rule for object files
+$(BIN_DIR)/%.o: $(SRC_DIR)/%.c | $(BIN_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-request.o: request.c request.h
-	$(CC) $(FLAGS) request.c
+# Create bin directory if it doesn't exist
+$(BIN_DIR):
+	mkdir -p $(BIN_DIR)
 
-skipList.o: skipList.c skipList.h
-	$(CC) $(FLAGS) skipList.c
-
-vaccinationData.o: vaccinationData.c vaccinationData.h record.h country.h genericHashTable.h
-	$(CC) $(FLAGS) vaccinationData.c
-
-Monitor.o: Monitor.c $(HEADER)
-	$(CC) $(FLAGS) Monitor.c
-
-travelMonitor.o: travelMonitor.c genericHashTable.h virus.h bloomFilter.h pipe.h travelMonitor.h request.h utils.h
-	$(CC) $(FLAGS) travelMonitor.c
-
-virus.o: virus.c virus.h record.h skipList.h bloomFilter.h vaccinationData.h Monitor.h
-	$(CC) $(FLAGS) virus.c
+$(RUN_DIR):
+	mkdir -p $(RUN_DIR)
+	mkdir -p $(LOG_DIR)
+	mkdir -p $(PIPE_DIR)
 
 clean:
-	rm -f $(OBJS) $(OUT) mon* tm_to_mon* log_file.*
+	rm -rf $(BIN_DIR) $(RUN_DIR)
+
+.PHONY: all clean

@@ -1,0 +1,36 @@
+#REQUEST ACCEPTED – HAPPY TRAVELS
+/travelRequest 3159 8-12-2013 belgium greece covid-19
+/travelRequest 4753 30-4-2006 belgium greece gripi
+/travelRequest 1851 1-11-2013 germany greece covid-19
+/travelRequest 9646 4-11-2005 germany greece h1n1
+/travelRequest 9846 4-11-2011 greece germany gripi
+/travelRequest 1708 28-6-2015 greece germany gripi
+/travelRequest 9708 23-4-2002 italy greece covid-19
+/travelRequest 2686 27-2-2018 italy greece covid-19
+
+#REQUEST REJECTED – YOU WILL NEED ANOTHER VACCINATION BEFORE TRAVEL DATE
+/travelRequest 3159 8-12-2022 belgium greece covid-19
+/travelRequest 9646 4-11-2022 germany greece h1n1
+
+#REQUEST REJECTED – YOU ARE NOT VACCINATED
+/travelRequest 9069 27-2-2018 belgium greece covid-19
+/travelRequest 5121 27-2-2018 germany italy covid-19
+/travelRequest 9261 27-2-2018 germany italy h1n1
+
+/travelStats covid-19 12-12-1900 12-12-2022
+/travelStats covid-19 12-12-1900 12-12-2022 greece
+/travelStats covid-19 5-11-2013 12-12-2022 
+/travelStats covid-19 5-11-2013 12-12-2022 greece
+
+/addVaccinationRecords greece
+/travelRequest 70 12-12-2020 greece belgium covid-19
+
+/searchVaccinationStatus 70
+/searchVaccinationStatus 3159
+/searchVaccinationStatus 4753
+/searchVaccinationStatus 9646
+/searchVaccinationStatus 1708
+
+./scripts/create_infiles.sh ./data/inputFile ./data/countries/ 4
+valgrind --leak-check=full --show-leak-kinds=all ./bin/travelMonitor -m 5 -b 1000 -s 100000 -i ./data/countries/
+./bin/travelMonitor -m 5 -b 1000 -s 100000 -i ./data/countries/

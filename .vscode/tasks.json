@@ -4,14 +4,8 @@
 		{
 			"type": "cppbuild",
 			"label": "C/C++: gcc build active file",
-			"command": "/usr/bin/gcc",
-			"args": [
-				"-g",
-				"${file}",
-				"-o",
-				"${fileDirname}/${fileBasenameNoExtension}",
-				"bloomFilter.c","country.c","genericHashTable.c","record.c","skipList.c","vaccinationData.c","virus.c","utils.c","pipe.c","request.c"
-			],
+			"command": "make",
+			"args": [],
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},

@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "virus.h": "c",
-        "generichashtable.h": "c"
+        "generichashtable.h": "c",
+        "utils.h": "c"
     }
 }
