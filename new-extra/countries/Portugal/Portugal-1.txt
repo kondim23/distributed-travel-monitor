@@ -1,6 +1,0 @@
-1 name surname Portugal 32 covid-19 YES 12-12-2020
-2 name surname Portugal 32 covid-19 YES 12-12-2020
-3 name surname Portugal 32 covid-19 YES 12-12-2020
-4 name surname Portugal 32 covid-19 YES 12-12-2020
-5 name surname Portugal 32 covid-19 YES 12-12-2020
-6 name surname Portugal 32 covid-19 YES 12-12-2020

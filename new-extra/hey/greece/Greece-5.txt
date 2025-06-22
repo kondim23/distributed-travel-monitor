@@ -1,6 +1,0 @@
-70 name surname Greece 32 covid-19 YES 12-12-2020
-80 name surname Greece 32 covid-19 YES 12-12-2020
-90 name surname Greece 32 covid-19 YES 12-12-2020
-100 name surname Greece 32 covid-19 YES 12-12-2020
-110 name surname Greece 32 covid-19 YES 12-12-2020
-120 name surname Greece 32 covid-19 YES 12-12-2020

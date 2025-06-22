@@ -1,6 +1,0 @@
-13 name surname China 32 h1n1 YES 12-12-2020
-14 name surname China 32 gripi YES 12-12-2020
-15 name surname China 32 covid-19 YES 12-12-2020
-16 name surname China 32 h1n1 YES 12-12-2020
-17 name surname China 32 covid-19 YES 12-12-2020
-18 name surname China 32 h1n1 YES 12-12-2020
